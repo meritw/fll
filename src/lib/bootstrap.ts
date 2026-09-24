@@ -27,6 +27,21 @@ export async function ensureFirstCoach() {
     .limit(1);
   if (existing) {
     if (existing.email !== email || existing.role !== "coach") {
+      const [emailOwner] = await getDb()
+        .select({ id: user.id })
+        .from(user)
+        .where(eq(user.email, email))
+        .limit(1);
+      if (emailOwner && emailOwner.id !== existing.id) {
+        // Another account already owns COACH_EMAIL — do not steal it.
+        if (existing.role !== "coach") {
+          await getDb()
+            .update(user)
+            .set({ role: "coach", updatedAt: new Date() })
+            .where(eq(user.id, existing.id));
+        }
+        return;
+      }
       await getDb()
         .update(user)
         .set({

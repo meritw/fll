@@ -8,7 +8,15 @@ import { getDb } from "@/db";
 import * as authSchema from "@/db/auth-schema";
 import { deliverToCoach } from "@/lib/mail";
 
+// Canonical production host is www — Vercel 308s apex → www. Using apex here
+// makes magic-link / reset URLs bounce hosts and can drop host-only cookies.
+const CANONICAL_PROD_URL = "https://www.rollingsparks.org";
+const APEX_PROD_URL = "https://rollingsparks.org";
 const appUrl = process.env.BETTER_AUTH_URL || "http://localhost:3000";
+const isProdHost =
+  appUrl === CANONICAL_PROD_URL ||
+  appUrl === APEX_PROD_URL ||
+  appUrl.endsWith("rollingsparks.org");
 
 export const auth = betterAuth({
   appName: "Rolling Sparks",
@@ -16,9 +24,22 @@ export const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET,
   trustedOrigins: [
     appUrl,
-    "https://rollingsparks.org",
-    "https://www.rollingsparks.org",
+    CANONICAL_PROD_URL,
+    APEX_PROD_URL,
   ],
+  advanced: isProdHost
+    ? {
+        crossSubDomainCookies: {
+          enabled: true,
+          domain: ".rollingsparks.org",
+        },
+        defaultCookieAttributes: {
+          secure: true,
+          sameSite: "lax",
+          path: "/",
+        },
+      }
+    : undefined,
   database: drizzleAdapter(getDb(), {
     provider: "pg",
     schema: {
