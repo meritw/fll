@@ -100,7 +100,12 @@ export function ProgramForm({
         error?: string;
       } | null;
       if (!ticketResponse.ok || !ticket?.url || !ticket.key || !ticket.contentType) {
-        setError(ticket?.error ?? "The file did not upload. Try again.");
+        setError(
+          ticket?.error ??
+            (ticketResponse.status === 401 || ticketResponse.status === 403
+              ? "Sign in first."
+              : "The file did not upload. Try again."),
+        );
         return;
       }
 

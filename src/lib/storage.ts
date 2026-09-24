@@ -84,10 +84,18 @@ export async function headProgramObject(key: string) {
   if (!config) {
     return null;
   }
-  const result = await getClient(config).send(
-    new HeadObjectCommand({ Bucket: config.bucket, Key: key }),
-  );
-  return { size: result.ContentLength ?? 0 };
+  try {
+    const result = await getClient(config).send(
+      new HeadObjectCommand({ Bucket: config.bucket, Key: key }),
+    );
+    return { size: result.ContentLength ?? 0 };
+  } catch (error) {
+    const name = error instanceof Error ? error.name : "";
+    if (name === "NotFound" || name === "NoSuchKey") {
+      return null;
+    }
+    throw error;
+  }
 }
 
 export async function openProgramObject(key: string) {

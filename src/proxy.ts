@@ -11,6 +11,10 @@ export function proxy(request: NextRequest) {
   const hasSession = Boolean(getSessionCookie(request));
 
   if (!hasSession && !isPublic) {
+    // Let API routes return JSON 401 instead of an HTML login redirect.
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.next();
+    }
     return NextResponse.redirect(new URL("/login", request.url));
   }
 

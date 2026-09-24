@@ -11,7 +11,13 @@ import {
 export const runtime = "nodejs";
 
 export async function POST(request: Request) {
-  const session = await auth.api.getSession({ headers: request.headers });
+  let session: Awaited<ReturnType<typeof auth.api.getSession>>;
+  try {
+    session = await auth.api.getSession({ headers: request.headers });
+  } catch (error) {
+    console.error("Upload session failed", error);
+    return NextResponse.json({ error: "Sign in first." }, { status: 401 });
+  }
   if (!session) {
     return NextResponse.json({ error: "Sign in first." }, { status: 401 });
   }
