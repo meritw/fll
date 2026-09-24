@@ -9,10 +9,19 @@ export async function getSession() {
   });
 }
 
-export async function requireUser() {
+export function needsPasswordChange(user: {
+  mustChangePassword?: boolean | null;
+}) {
+  return Boolean(user.mustChangePassword);
+}
+
+export async function requireUser(options?: { allowPasswordChange?: boolean }) {
   const session = await getSession();
   if (!session) {
     redirect("/login");
+  }
+  if (needsPasswordChange(session.user) && !options?.allowPasswordChange) {
+    redirect("/set-password");
   }
   return session;
 }

@@ -31,7 +31,7 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     autoSignIn: false,
-    minPasswordLength: 8,
+    minPasswordLength: 6,
     sendResetPassword: async ({ user, url }) => {
       await deliverToCoach({
         email: user.email,
@@ -46,6 +46,12 @@ export const auth = betterAuth({
         type: "string",
         required: true,
         defaultValue: "student",
+        input: false,
+      },
+      mustChangePassword: {
+        type: "boolean",
+        required: true,
+        defaultValue: false,
         input: false,
       },
     },

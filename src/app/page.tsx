@@ -1,8 +1,11 @@
 import { redirect } from "next/navigation";
 
-import { getSession } from "@/lib/session";
+import { getSession, needsPasswordChange } from "@/lib/session";
 
 export default async function HomePage() {
   const session = await getSession();
-  redirect(session ? "/programs" : "/login");
+  if (!session) {
+    redirect("/login");
+  }
+  redirect(needsPasswordChange(session.user) ? "/set-password" : "/programs");
 }

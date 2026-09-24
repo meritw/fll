@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
 import { LoginForm } from "@/components/login-form";
-import { getSession } from "@/lib/session";
+import { getSession, needsPasswordChange } from "@/lib/session";
 
 export const metadata: Metadata = {
   title: "Sign in",
@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 export default async function LoginPage() {
   const session = await getSession();
   if (session) {
-    redirect("/programs");
+    redirect(needsPasswordChange(session.user) ? "/set-password" : "/programs");
   }
 
   return (

@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { auth } from "@/lib/auth";
-import { createAccount, resetStudentPassword } from "@/lib/accounts";
+import { clearMustChangePassword, createAccount, resetStudentPassword } from "@/lib/accounts";
 import { findDeliverableCoach } from "@/lib/coaches";
 import { VAGUE_EMAIL_MESSAGE } from "@/lib/messages";
 import {
@@ -163,7 +163,40 @@ export async function setStudentPassword(
     return result;
   }
   revalidatePath("/admin");
-  return { message: "Password saved. Tell them the new one." };
+  return { message: "Password saved. They must pick a new one at sign-in." };
+}
+
+export async function completeForcedPasswordChange(input: {
+  currentPassword: string;
+  newPassword: string;
+}): Promise<ActionState> {
+  const session = await requireUser({ allowPasswordChange: true });
+  if (!session.user.mustChangePassword) {
+    return { message: "Password already updated." };
+  }
+  if (input.newPassword.length < 6) {
+    return { error: "Pick a password with at least 6 characters." };
+  }
+  if (input.newPassword === input.currentPassword) {
+    return { error: "Pick a new password that is different from the old one." };
+  }
+
+  try {
+    await auth.api.changePassword({
+      body: {
+        currentPassword: input.currentPassword,
+        newPassword: input.newPassword,
+        revokeOtherSessions: true,
+      },
+      headers: await headers(),
+    });
+  } catch (error) {
+    console.error(error);
+    return { error: "Check the password from your coach, then try again." };
+  }
+
+  await clearMustChangePassword(session.user.id);
+  return { message: "Password saved." };
 }
 
 export type ActionState = {

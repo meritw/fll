@@ -12,6 +12,9 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
   if (!session) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
+  if (session.user.mustChangePassword) {
+    return NextResponse.redirect(new URL("/set-password", request.url));
+  }
 
   const { id } = await context.params;
   const version = await getVersionFile(id);

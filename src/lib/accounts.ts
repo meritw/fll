@@ -24,8 +24,8 @@ export async function createAccount(input: {
   if (!displayName || displayName.length > 80) {
     return { error: "Add a name." };
   }
-  if (input.password.length < 8) {
-    return { error: "Use at least 8 characters for the password." };
+  if (input.password.length < 6) {
+    return { error: "Use at least 6 characters for the password." };
   }
 
   let email: string;
@@ -56,6 +56,7 @@ export async function createAccount(input: {
       .set({
         role: input.role,
         emailVerified: input.role === "coach",
+        mustChangePassword: input.role === "student",
         updatedAt: new Date(),
       })
       .where(eq(user.id, result.user.id));
@@ -104,8 +105,8 @@ export async function listPeople() {
 }
 
 export async function resetStudentPassword(userId: string, password: string) {
-  if (password.length < 8) {
-    return { error: "Use at least 8 characters for the password." };
+  if (password.length < 6) {
+    return { error: "Use at least 6 characters for the password." };
   }
 
   const [person] = await getDb()
@@ -127,6 +128,17 @@ export async function resetStudentPassword(userId: string, password: string) {
     return { error: "Could not set that password. Try again." };
   }
 
+  await getDb()
+    .update(user)
+    .set({ mustChangePassword: true, updatedAt: new Date() })
+    .where(eq(user.id, userId));
   await getDb().delete(session).where(eq(session.userId, userId));
   return { ok: true as const };
+}
+
+export async function clearMustChangePassword(userId: string) {
+  await getDb()
+    .update(user)
+    .set({ mustChangePassword: false, updatedAt: new Date() })
+    .where(eq(user.id, userId));
 }

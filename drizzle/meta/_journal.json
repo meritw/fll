@@ -8,6 +8,13 @@
       "when": 1790211772133,
       "tag": "0000_nervous_radioactive_man",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790300000000,
+      "tag": "0001_must_change_password",
+      "breakpoints": true
     }
   ]
 }
