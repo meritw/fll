@@ -66,7 +66,7 @@ export function ResetPasswordForm({ userId, name }: { userId: string; name: stri
   const [state, formAction, pending] = useActionState(setStudentPassword, initialState);
 
   return (
-    <form action={formAction} className="mt-3 flex flex-col gap-3">
+    <form action={formAction} className="flex flex-col gap-3">
       <input type="hidden" name="userId" value={userId} />
       <Label htmlFor={`password-${userId}`} className="text-lg">
         New password for {name}

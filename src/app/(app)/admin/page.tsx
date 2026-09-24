@@ -1,8 +1,15 @@
 import type { Metadata } from "next";
 
 import { AddCoachForm, AddStudentForm, ResetPasswordForm } from "@/components/admin-forms";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { listPeople } from "@/lib/accounts";
 import { requireCoach } from "@/lib/session";
 
@@ -17,22 +24,35 @@ export default async function AdminPage() {
   return (
     <div className="flex flex-col gap-8">
       <h1 className="text-3xl font-semibold">People</h1>
-      <div className="flex flex-col gap-4">
-        {people.map((person) => (
-          <Card key={person.id} className="text-lg">
-            <CardHeader>
-              <CardTitle className="text-2xl">{person.name}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p>Username: {person.username}</p>
-              <p>{person.role === "coach" ? "Coach" : "Student"}</p>
-              {person.email ? <p>{person.email}</p> : null}
-              {person.role === "student" ? (
-                <ResetPasswordForm userId={person.id} name={person.name} />
-              ) : null}
-            </CardContent>
-          </Card>
-        ))}
+      <div className="overflow-hidden rounded-xl bg-card ring-1 ring-foreground/10">
+        <Table className="text-lg">
+          <TableHeader>
+            <TableRow className="hover:bg-transparent">
+              <TableHead className="h-14 px-4 text-lg font-semibold">Name</TableHead>
+              <TableHead className="h-14 px-4 text-lg font-semibold">Username</TableHead>
+              <TableHead className="h-14 px-4 text-lg font-semibold">Role</TableHead>
+              <TableHead className="h-14 px-4 text-lg font-semibold">Email</TableHead>
+              <TableHead className="h-14 px-4 text-lg font-semibold">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {people.map((person) => (
+              <TableRow key={person.id}>
+                <TableCell className="px-4 py-4 font-medium">{person.name}</TableCell>
+                <TableCell className="px-4 py-4">{person.username}</TableCell>
+                <TableCell className="px-4 py-4">
+                  {person.role === "coach" ? "Coach" : "Student"}
+                </TableCell>
+                <TableCell className="px-4 py-4">{person.email ?? "—"}</TableCell>
+                <TableCell className="min-w-64 whitespace-normal px-4 py-4">
+                  {person.role === "student" ? (
+                    <ResetPasswordForm userId={person.id} name={person.name} />
+                  ) : null}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
       </div>
       <Separator />
       <AddStudentForm />
