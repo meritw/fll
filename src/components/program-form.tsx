@@ -25,12 +25,14 @@ export function ProgramForm({
   defaultName,
   defaultMissionIds,
   missions,
+  showSaveName = true,
 }: {
   mode: "create" | "version";
   programId?: string;
   defaultName: string;
   defaultMissionIds: number[];
   missions: MissionChoice[];
+  showSaveName?: boolean;
 }) {
   const router = useRouter();
   const [name, setName] = useState(defaultName);
@@ -210,7 +212,7 @@ export function ProgramForm({
         </Alert>
       ) : null}
       <div className="flex flex-col gap-3">
-        {mode === "version" ? (
+        {mode === "version" && showSaveName ? (
           <Button type="submit" value="save-name" variant="outline" size="xl" disabled={pending}>
             Save name
           </Button>

@@ -24,15 +24,17 @@ export default async function AdminPage() {
   return (
     <div className="flex flex-col gap-8">
       <h1 className="text-3xl font-semibold">People</h1>
-      <div className="overflow-hidden rounded-xl bg-card ring-1 ring-foreground/10">
-        <Table className="text-lg">
+      <div className="overflow-x-auto rounded-xl bg-card ring-1 ring-foreground/10">
+        <Table className="w-full text-lg">
           <TableHeader>
             <TableRow className="hover:bg-transparent">
               <TableHead className="h-14 px-4 text-lg font-semibold">Name</TableHead>
               <TableHead className="h-14 px-4 text-lg font-semibold">Username</TableHead>
               <TableHead className="h-14 px-4 text-lg font-semibold">Role</TableHead>
               <TableHead className="h-14 px-4 text-lg font-semibold">Email</TableHead>
-              <TableHead className="h-14 px-4 text-lg font-semibold">Actions</TableHead>
+              <TableHead className="h-14 w-[1%] whitespace-nowrap px-4 text-right text-lg font-semibold">
+                Actions
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -43,8 +45,10 @@ export default async function AdminPage() {
                 <TableCell className="px-4 py-4">
                   {person.role === "coach" ? "Coach" : "Student"}
                 </TableCell>
-                <TableCell className="px-4 py-4">{person.email ?? "—"}</TableCell>
-                <TableCell className="min-w-64 whitespace-normal px-4 py-4">
+                <TableCell className="max-w-[18rem] truncate px-4 py-4" title={person.email ?? undefined}>
+                  {person.email ?? "—"}
+                </TableCell>
+                <TableCell className="whitespace-nowrap px-4 py-4 text-right">
                   {person.role === "student" ? (
                     <ResetPasswordForm userId={person.id} name={person.name} />
                   ) : null}

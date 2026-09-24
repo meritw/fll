@@ -1,9 +1,17 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { addCoach, addStudent, setStudentPassword, type ActionState } from "@/lib/actions";
@@ -63,24 +71,58 @@ function PersonForm({
 }
 
 export function ResetPasswordForm({ userId, name }: { userId: string; name: string }) {
+  const [open, setOpen] = useState(false);
+  const [formKey, setFormKey] = useState(0);
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) {
+          setFormKey((value) => value + 1);
+        }
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button type="button" size="lg" variant="secondary">
+          Set password
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-xl">Set password</DialogTitle>
+          <DialogDescription className="text-base">
+            Choose a new password for {name}.
+          </DialogDescription>
+        </DialogHeader>
+        <ResetPasswordFields key={formKey} userId={userId} />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ResetPasswordFields({ userId }: { userId: string }) {
   const [state, formAction, pending] = useActionState(setStudentPassword, initialState);
 
   return (
-    <form action={formAction} className="flex flex-col gap-3">
+    <form action={formAction} className="flex flex-col gap-4">
       <input type="hidden" name="userId" value={userId} />
-      <Label htmlFor={`password-${userId}`} className="text-lg">
-        New password for {name}
-      </Label>
-      <Input
-        id={`password-${userId}`}
-        name="password"
-        type="password"
-        autoComplete="new-password"
-        className={fieldClass}
-        required
-      />
+      <div className="flex flex-col gap-2">
+        <Label htmlFor={`password-${userId}`} className="text-lg">
+          New password
+        </Label>
+        <Input
+          id={`password-${userId}`}
+          name="password"
+          type="password"
+          autoComplete="new-password"
+          className={fieldClass}
+          required
+        />
+      </div>
       <FormNotice state={state} />
-      <Button type="submit" size="xl" variant="secondary" disabled={pending}>
+      <Button type="submit" size="xl" disabled={pending}>
         Set password
       </Button>
     </form>

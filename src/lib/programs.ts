@@ -35,9 +35,11 @@ export async function listPrograms() {
       versionCount: row.versions.length,
       latestVersionId: latest?.id ?? null,
       missions: missions.map((item) => ({
+        id: item.id,
         number: item.number,
         name: item.name,
       })),
+      latestMissionIds: missions.map((item) => item.id),
     };
   });
 }

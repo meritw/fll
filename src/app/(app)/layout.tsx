@@ -11,7 +11,7 @@ export default async function AppLayout({
   return (
     <>
       <Header name={session.user.name} isCoach={session.user.role === "coach"} />
-      <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-4 py-8">{children}</main>
+      <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col px-4 py-8">{children}</main>
     </>
   );
 }
