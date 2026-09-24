@@ -1,9 +1,9 @@
-import { head } from "@vercel/blob";
 import { asc, eq, inArray, max } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { mission, program, programVersion, versionMission } from "@/db/schema";
 import { safeFileName } from "@/lib/format";
+import { headProgramObject, isOwnedProgramKey, MAX_PROGRAM_BYTES } from "@/lib/storage";
 
 export async function listMissions() {
   return getDb().select().from(mission).orderBy(asc(mission.number));
@@ -82,7 +82,7 @@ export async function getProgram(id: string) {
 export async function getVersionFile(id: string) {
   const [row] = await getDb()
     .select({
-      blobUrl: programVersion.blobUrl,
+      objectKey: programVersion.blobPathname,
       fileName: programVersion.fileName,
     })
     .from(programVersion)
@@ -127,33 +127,25 @@ async function keepKnownMissions(ids: number[]) {
   return unique.filter((id) => allowed.has(id));
 }
 
-async function assertUploadedFile(blobUrl: string, fileName: string) {
+async function assertUploadedFile(objectKey: string, fileName: string, userId: string) {
   if (!fileName.toLowerCase().endsWith(".llsp3")) {
     return { error: "Choose a .llsp3 file." };
   }
-
-  let parsed: URL;
-  try {
-    parsed = new URL(blobUrl);
-  } catch {
-    return { error: "The file did not upload. Try again." };
-  }
-
-  if (
-    parsed.protocol !== "https:" ||
-    !parsed.hostname.endsWith(".private.blob.vercel-storage.com")
-  ) {
+  if (!isOwnedProgramKey(userId, objectKey)) {
     return { error: "The file did not upload. Try again." };
   }
 
   try {
-    const meta = await head(blobUrl);
-    if (!meta.pathname.toLowerCase().endsWith(".llsp3")) {
-      return { error: "Choose a .llsp3 file." };
+    const meta = await headProgramObject(objectKey);
+    if (!meta) {
+      return { error: "File saving is not set up yet. Ask a coach." };
     }
-    return { pathname: meta.pathname, fileName: safeFileName(fileName) };
+    if (meta.size <= 0 || meta.size > MAX_PROGRAM_BYTES) {
+      return { error: "That file is too large." };
+    }
+    return { key: objectKey, fileName: safeFileName(fileName) };
   } catch (error) {
-    console.error("Blob lookup failed", error);
+    console.error("Storage lookup failed", error);
     return { error: "The file did not upload. Try again." };
   }
 }
@@ -186,7 +178,7 @@ export async function createProgram(input: {
   name: string;
   note: string;
   missionIds: number[];
-  blobUrl: string;
+  objectKey: string;
   fileName: string;
 }) {
   const cleanedName = cleanName(input.name);
@@ -197,7 +189,7 @@ export async function createProgram(input: {
   if ("error" in cleanedNote) {
     return cleanedNote;
   }
-  const file = await assertUploadedFile(input.blobUrl, input.fileName);
+  const file = await assertUploadedFile(input.objectKey, input.fileName, input.userId);
   if ("error" in file) {
     return file;
   }
@@ -216,8 +208,8 @@ export async function createProgram(input: {
       id: versionId,
       programId,
       versionNumber: 1,
-      blobUrl: input.blobUrl,
-      blobPathname: file.pathname,
+      blobUrl: file.key,
+      blobPathname: file.key,
       fileName: file.fileName,
       note: cleanedNote.note,
       uploadedById: input.userId,
@@ -238,7 +230,7 @@ export async function addProgramVersion(input: {
   name: string;
   note: string;
   missionIds: number[];
-  blobUrl: string;
+  objectKey: string;
   fileName: string;
 }) {
   const cleanedName = cleanName(input.name);
@@ -249,7 +241,7 @@ export async function addProgramVersion(input: {
   if ("error" in cleanedNote) {
     return cleanedNote;
   }
-  const file = await assertUploadedFile(input.blobUrl, input.fileName);
+  const file = await assertUploadedFile(input.objectKey, input.fileName, input.userId);
   if ("error" in file) {
     return file;
   }
@@ -282,8 +274,8 @@ export async function addProgramVersion(input: {
       id: versionId,
       programId: input.programId,
       versionNumber,
-      blobUrl: input.blobUrl,
-      blobPathname: file.pathname,
+      blobUrl: file.key,
+      blobPathname: file.key,
       fileName: file.fileName,
       note: cleanedNote.note,
       uploadedById: input.userId,
