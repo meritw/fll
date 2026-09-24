@@ -13,10 +13,17 @@ import { deliverToCoach } from "@/lib/mail";
 const CANONICAL_PROD_URL = "https://www.rollingsparks.org";
 const APEX_PROD_URL = "https://rollingsparks.org";
 const appUrl = process.env.BETTER_AUTH_URL || "http://localhost:3000";
-const isProdHost =
-  appUrl === CANONICAL_PROD_URL ||
-  appUrl === APEX_PROD_URL ||
-  appUrl.endsWith("rollingsparks.org");
+
+function isRollingSparksHost(url: string) {
+  try {
+    const host = new URL(url).hostname;
+    return host === "www.rollingsparks.org" || host === "rollingsparks.org";
+  } catch {
+    return false;
+  }
+}
+
+const isProdHost = isRollingSparksHost(appUrl);
 
 export const auth = betterAuth({
   appName: "Rolling Sparks",
