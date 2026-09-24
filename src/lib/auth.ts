@@ -2,11 +2,10 @@ import { drizzleAdapter } from "@better-auth/drizzle-adapter";
 import { betterAuth } from "better-auth";
 import { APIError, createAuthMiddleware } from "better-auth/api";
 import { nextCookies } from "better-auth/next-js";
-import { emailOTP, magicLink, username } from "better-auth/plugins";
+import { username } from "better-auth/plugins";
 
 import { getDb } from "@/db";
 import * as authSchema from "@/db/auth-schema";
-import { deliverToCoach } from "@/lib/mail";
 
 const appUrl = process.env.BETTER_AUTH_URL || "http://localhost:3000";
 
@@ -32,13 +31,6 @@ export const auth = betterAuth({
     enabled: true,
     autoSignIn: false,
     minPasswordLength: 8,
-    sendResetPassword: async ({ user, url }) => {
-      await deliverToCoach({
-        email: user.email,
-        subject: "Reset your Rolling Sparks password",
-        text: `Reset your Rolling Sparks password:\n${url}\n\nIf you did not ask for this, you can ignore this email.`,
-      });
-    },
   },
   user: {
     additionalFields: {
@@ -71,32 +63,6 @@ export const auth = betterAuth({
       immutableUsername: true,
       minUsernameLength: 3,
       maxUsernameLength: 30,
-    }),
-    magicLink({
-      disableSignUp: true,
-      expiresIn: 60 * 5,
-      sendMagicLink: async ({ email, url }) => {
-        await deliverToCoach({
-          email,
-          subject: "Your Rolling Sparks sign-in link",
-          text: `Sign in to Rolling Sparks:\n${url}\n\nThis link expires in 5 minutes. If you did not ask for it, you can ignore this email.`,
-        });
-      },
-    }),
-    emailOTP({
-      disableSignUp: true,
-      otpLength: 6,
-      expiresIn: 60 * 5,
-      sendVerificationOTP: async ({ email, otp, type }) => {
-        if (type !== "sign-in") {
-          return;
-        }
-        await deliverToCoach({
-          email,
-          subject: "Your Rolling Sparks sign-in code",
-          text: `Your Rolling Sparks sign-in code is ${otp}\n\nIt expires in 5 minutes. If you did not ask for it, you can ignore this email.`,
-        });
-      },
     }),
     nextCookies(),
   ],

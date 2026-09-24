@@ -117,6 +117,14 @@ export async function resetStudentPassword(userId: string, password: string) {
     return { error: "Pick a student." };
   }
 
+  return setCredentialPassword(userId, password);
+}
+
+export async function setCredentialPassword(userId: string, password: string) {
+  if (password.length < 8) {
+    return { error: "Use at least 8 characters for the password." };
+  }
+
   const hashed = await hashPassword(password);
   const updated = await getDb()
     .update(account)

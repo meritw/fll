@@ -8,7 +8,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { authClient } from "@/lib/auth-client";
+import { saveResetPassword } from "@/lib/actions";
 
 const fieldClass = "h-12 px-3 text-lg md:text-lg";
 
@@ -45,13 +45,10 @@ function ResetPasswordForm() {
     }
     setPending(true);
     setError(null);
-    const result = await authClient.resetPassword({
-      newPassword: password,
-      token,
-    });
+    const result = await saveResetPassword(token, password, confirm);
     setPending(false);
-    if (result.error) {
-      setError("That reset link is used up. Ask a coach to send a new one.");
+    if ("error" in result) {
+      setError(result.error ?? "That reset link is used up. Ask a coach to send a new one.");
       return;
     }
     router.push("/login");

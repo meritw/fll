@@ -7,13 +7,18 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { requestEmailCode, requestMagicLink, requestPasswordReset } from "@/lib/actions";
+import {
+  requestEmailCode,
+  requestMagicLink,
+  requestPasswordReset,
+  signInWithCoachCode,
+} from "@/lib/actions";
 import { authClient } from "@/lib/auth-client";
-import { BAD_CODE_MESSAGE, BAD_PASSWORD_MESSAGE } from "@/lib/messages";
+import { BAD_PASSWORD_MESSAGE } from "@/lib/messages";
 
 const fieldClass = "h-12 px-3 text-lg md:text-lg";
 
-export function LoginForm() {
+export function LoginForm({ notice }: { notice?: string | null }) {
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -21,7 +26,7 @@ export function LoginForm() {
   const [code, setCode] = useState("");
   const [showCode, setShowCode] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(notice ?? null);
   const [pending, setPending] = useState(false);
 
   async function signInWithPassword(event: React.FormEvent) {
@@ -73,13 +78,10 @@ export function LoginForm() {
     event.preventDefault();
     setError(null);
     setPending(true);
-    const result = await authClient.signIn.emailOtp({
-      email: email.trim(),
-      otp: code.trim(),
-    });
+    const result = await signInWithCoachCode(email, code);
     setPending(false);
-    if (result.error) {
-      setError(BAD_CODE_MESSAGE);
+    if ("error" in result && result.error) {
+      setError(result.error);
       return;
     }
     router.push("/programs");

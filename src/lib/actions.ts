@@ -1,13 +1,26 @@
 "use server";
 
-import { headers } from "next/headers";
+import { randomBytes, randomUUID } from "node:crypto";
+
+import { and, eq, like } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
-import { auth } from "@/lib/auth";
-import { createAccount, resetStudentPassword } from "@/lib/accounts";
+import { getDb } from "@/db";
+import { verification } from "@/db/schema";
+import { rememberAppSession } from "@/lib/app-session";
+import { createAccount, resetStudentPassword, setCredentialPassword } from "@/lib/accounts";
 import { findDeliverableCoach } from "@/lib/coaches";
-import { VAGUE_EMAIL_MESSAGE } from "@/lib/messages";
+import { BAD_CODE_MESSAGE, VAGUE_EMAIL_MESSAGE } from "@/lib/messages";
+import {
+  consumeNeonPasswordReset,
+  ensureNeonCoach,
+  neonResetEmail,
+  sendNeonEmailCode,
+  sendNeonMagicLink,
+  sendNeonPasswordReset,
+  verifyNeonEmailCode,
+} from "@/lib/neon-mail";
 import {
   addProgramVersion,
   createProgram,
@@ -36,22 +49,27 @@ async function sendCoachEmail(email: string, kind: "link" | "code" | "reset") {
   const coach = await findDeliverableCoach(trimmed);
   if (coach) {
     try {
-      const requestHeaders = await headers();
-      if (kind === "link") {
-        await auth.api.signInMagicLink({
-          body: { email: coach.email, callbackURL: "/programs" },
-          headers: requestHeaders,
+      const ready = await ensureNeonCoach(coach.email, coach.name);
+      if (ready && kind === "link") {
+        const nonce = randomBytes(32).toString("base64url");
+        const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+        await getDb()
+          .delete(verification)
+          .where(
+            and(eq(verification.value, coach.email), like(verification.identifier, "neon-link:%")),
+          );
+        await getDb().insert(verification).values({
+          id: randomUUID(),
+          identifier: `neon-link:${nonce}`,
+          value: coach.email,
+          expiresAt,
         });
-      } else if (kind === "code") {
-        await auth.api.sendVerificationOTP({
-          body: { email: coach.email, type: "sign-in" },
-          headers: requestHeaders,
-        });
-      } else {
-        await auth.api.requestPasswordReset({
-          body: { email: coach.email, redirectTo: "/reset-password" },
-          headers: requestHeaders,
-        });
+        const callbackURL = `${appBaseUrl()}/auth/continue?nonce=${nonce}`;
+        await sendNeonMagicLink(coach.email, callbackURL);
+      } else if (ready && kind === "code") {
+        await sendNeonEmailCode(coach.email);
+      } else if (ready) {
+        await sendNeonPasswordReset(coach.email, `${appBaseUrl()}/reset-password`);
       }
     } catch (error) {
       console.error(error);
@@ -59,6 +77,51 @@ async function sendCoachEmail(email: string, kind: "link" | "code" | "reset") {
   }
 
   return { message: VAGUE_EMAIL_MESSAGE };
+}
+
+function appBaseUrl() {
+  return (process.env.BETTER_AUTH_URL || "http://localhost:3000").replace(/\/$/, "");
+}
+
+export async function signInWithCoachCode(email: string, otp: string) {
+  const coach = await findDeliverableCoach(email);
+  const code = otp.trim();
+  if (!coach || !code) {
+    return { error: BAD_CODE_MESSAGE };
+  }
+  const verified = await verifyNeonEmailCode(coach.email, code);
+  if (!verified.ok) {
+    return { error: BAD_CODE_MESSAGE };
+  }
+  await rememberAppSession(coach.id);
+  return { ok: true as const };
+}
+
+const RESET_TOKEN = /^[A-Za-z0-9]{10,128}$/;
+
+export async function saveResetPassword(token: string, password: string, confirm: string) {
+  if (!RESET_TOKEN.test(token)) {
+    return { error: "That reset link is used up. Ask a coach to send a new one." };
+  }
+  if (password.length < 8) {
+    return { error: "Use at least 8 characters." };
+  }
+  if (password !== confirm) {
+    return { error: "Those passwords do not match." };
+  }
+
+  const email = await neonResetEmail(token);
+  const coach = email ? await findDeliverableCoach(email) : null;
+  if (!coach) {
+    return { error: "That reset link is used up. Ask a coach to send a new one." };
+  }
+
+  const updated = await setCredentialPassword(coach.id, password);
+  if ("error" in updated) {
+    return updated;
+  }
+  await consumeNeonPasswordReset(token, password);
+  return { ok: true as const };
 }
 
 export async function saveProgramName(programId: string, name: string) {
