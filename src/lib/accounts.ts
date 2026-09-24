@@ -7,7 +7,7 @@ import { account, session, user } from "@/db/schema";
 import { auth, internalSignupHeaders } from "@/lib/auth";
 import { isPlaceholderEmail, normalizeEmail } from "@/lib/coaches";
 
-const USERNAME = /^[a-z0-9._]{3,30}$/;
+const USERNAME = /^[a-z0-9._]{2,30}$/;
 
 export async function createAccount(input: {
   username: string;
@@ -19,7 +19,7 @@ export async function createAccount(input: {
   const username = input.username.trim().toLowerCase();
   const displayName = input.displayName.trim();
   if (!USERNAME.test(username)) {
-    return { error: "Use 3 to 30 letters, numbers, dots, or underscores." };
+    return { error: "Use 2 to 30 letters, numbers, dots, or underscores." };
   }
   if (!displayName || displayName.length > 80) {
     return { error: "Add a name." };

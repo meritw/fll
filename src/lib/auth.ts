@@ -69,7 +69,7 @@ export const auth = betterAuth({
     username({
       displayUsername: false,
       immutableUsername: true,
-      minUsernameLength: 3,
+      minUsernameLength: 2,
       maxUsernameLength: 30,
     }),
     magicLink({
