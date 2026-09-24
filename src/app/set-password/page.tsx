@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
 import { SetPasswordForm } from "@/components/set-password-form";
+import { SignOutButton } from "@/components/sign-out-button";
 import { getSession, needsPasswordChange } from "@/lib/session";
 
 export const metadata: Metadata = {
@@ -24,6 +25,9 @@ export default async function SetPasswordPage() {
       </h1>
       <h2 className="mb-8 text-center text-3xl font-semibold">Set a new password</h2>
       <SetPasswordForm username={session.user.username ?? session.user.name} />
+      <div className="mt-8 flex justify-center">
+        <SignOutButton />
+      </div>
     </main>
   );
 }
