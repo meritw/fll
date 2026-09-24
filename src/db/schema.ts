@@ -39,6 +39,7 @@ export const programVersion = pgTable(
       .notNull()
       .references(() => program.id, { onDelete: "restrict" }),
     versionNumber: integer("version_number").notNull(),
+    // Neon object key. Names stay so existing rows need no migration.
     blobUrl: text("blob_url").notNull(),
     blobPathname: text("blob_pathname").notNull(),
     fileName: text("file_name").notNull(),

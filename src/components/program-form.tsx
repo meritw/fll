@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { upload } from "@vercel/blob/client";
 import { useRouter } from "next/navigation";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -11,7 +10,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { addNewProgram, saveProgramName, uploadProgramVersion } from "@/lib/actions";
-import { safeFileName } from "@/lib/format";
 
 const fieldClass = "h-12 px-3 text-lg md:text-lg";
 
@@ -90,17 +88,37 @@ export function ProgramForm({
         return;
       }
 
-      const blob = await upload(`programs/${safeFileName(file.name)}`, file, {
-        access: "private",
-        handleUploadUrl: "/api/blob/upload",
-        contentType: file.type || "application/octet-stream",
+      const ticketResponse = await fetch("/api/storage/upload", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileName: file.name, size: file.size }),
       });
+      const ticket = (await ticketResponse.json().catch(() => null)) as {
+        url?: string;
+        key?: string;
+        contentType?: string;
+        error?: string;
+      } | null;
+      if (!ticketResponse.ok || !ticket?.url || !ticket.key || !ticket.contentType) {
+        setError(ticket?.error ?? "The file did not upload. Try again.");
+        return;
+      }
+
+      const put = await fetch(ticket.url, {
+        method: "PUT",
+        headers: { "Content-Type": ticket.contentType },
+        body: file,
+      });
+      if (!put.ok) {
+        setError("The file did not upload. Try again. If this keeps happening, ask a coach.");
+        return;
+      }
 
       const payload = {
         name,
         note,
         missionIds: [...selected],
-        blobUrl: blob.url,
+        objectKey: ticket.key,
         fileName: file.name,
       };
 

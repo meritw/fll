@@ -5,10 +5,6 @@ const publicPaths = ["/login", "/reset-password", "/api/auth"];
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  if (pathname.startsWith("/api/blob")) {
-    return NextResponse.next();
-  }
-
   const isPublic = publicPaths.some(
     (path) => pathname === path || pathname.startsWith(`${path}/`),
   );

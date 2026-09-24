@@ -76,7 +76,7 @@ export async function addNewProgram(input: {
   name: string;
   note: string;
   missionIds: number[];
-  blobUrl: string;
+  objectKey: string;
   fileName: string;
 }) {
   const session = await requireUser();
@@ -96,7 +96,7 @@ export async function uploadProgramVersion(input: {
   name: string;
   note: string;
   missionIds: number[];
-  blobUrl: string;
+  objectKey: string;
   fileName: string;
 }) {
   const session = await requireUser();
