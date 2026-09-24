@@ -24,8 +24,8 @@ export async function createAccount(input: {
   if (!displayName || displayName.length > 80) {
     return { error: "Add a name." };
   }
-  if (input.password.length < 8) {
-    return { error: "Use at least 8 characters for the password." };
+  if (input.password.length < 6) {
+    return { error: "Use at least 6 characters for the password." };
   }
 
   let email: string;
@@ -105,8 +105,8 @@ export async function listPeople() {
 }
 
 export async function resetStudentPassword(userId: string, password: string) {
-  if (password.length < 8) {
-    return { error: "Use at least 8 characters for the password." };
+  if (password.length < 6) {
+    return { error: "Use at least 6 characters for the password." };
   }
 
   const [person] = await getDb()

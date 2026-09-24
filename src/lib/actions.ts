@@ -175,7 +175,7 @@ export async function completeForcedPasswordChange(input: {
     return { message: "Password already updated." };
   }
   if (input.newPassword.length < 8) {
-    return { error: "Pick a password with at least 8 characters." };
+    return { error: "Pick a password with at least 6 characters." };
   }
   if (input.newPassword === input.currentPassword) {
     return { error: "Pick a new password that is different from the old one." };
