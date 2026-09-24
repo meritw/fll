@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { requestEmailCode, requestMagicLink, requestPasswordReset } from "@/lib/actions";
 import { authClient } from "@/lib/auth-client";
 import { BAD_CODE_MESSAGE, BAD_PASSWORD_MESSAGE } from "@/lib/messages";
+import { rememberStarterPassword } from "@/components/set-password-form";
 
 const fieldClass = "h-12 px-3 text-lg md:text-lg";
 
@@ -38,7 +39,14 @@ export function LoginForm() {
       setError(BAD_PASSWORD_MESSAGE);
       return;
     }
-    router.push("/programs");
+    const sessionResult = await authClient.getSession();
+    const mustChange = Boolean(sessionResult.data?.user.mustChangePassword);
+    if (mustChange) {
+      rememberStarterPassword(password);
+      router.push("/set-password");
+    } else {
+      router.push("/programs");
+    }
     router.refresh();
   }
 

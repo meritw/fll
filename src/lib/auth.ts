@@ -48,6 +48,12 @@ export const auth = betterAuth({
         defaultValue: "student",
         input: false,
       },
+      mustChangePassword: {
+        type: "boolean",
+        required: true,
+        defaultValue: false,
+        input: false,
+      },
     },
   },
   disabledPaths: ["/is-username-available"],

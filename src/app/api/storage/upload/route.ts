@@ -15,6 +15,12 @@ export async function POST(request: Request) {
   if (!session) {
     return NextResponse.json({ error: "Sign in first." }, { status: 401 });
   }
+  if (session.user.mustChangePassword) {
+    return NextResponse.json(
+      { error: "Set a new password before uploading." },
+      { status: 403 },
+    );
+  }
 
   if (!storageConfig()) {
     return NextResponse.json(

@@ -14,6 +14,7 @@ export const user = pgTable("user", {
     .notNull(),
   username: text("username").unique(),
   role: text("role").default("student").notNull(),
+  mustChangePassword: boolean("must_change_password").default(false).notNull(),
 });
 
 export const session = pgTable(
