@@ -76,6 +76,8 @@ export const meeting = pgTable(
     endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
     title: text("title"),
     summary: text("summary"),
+    // 1-based engineering notebook session number.
+    sessionNumber: integer("session_number"),
     // Unique key for seeded Mon/Thu sessions so re-seed skips duplicates.
     // Current keys: mon-thu-et:YYYY-MM-DD (Eastern). Legacy Pacific: mon-thu:YYYY-MM-DD.
     seedKey: text("seed_key").unique(),
@@ -105,6 +107,7 @@ export const meetingAttendee = pgTable(
   (table) => [primaryKey({ columns: [table.meetingId, table.userId] })],
 );
 
+/** Notebook line kinds: progress | action | lesson (see lib/notebook.ts). */
 export const meetingNote = pgTable(
   "meeting_note",
   {
@@ -112,13 +115,18 @@ export const meetingNote = pgTable(
     meetingId: text("meeting_id")
       .notNull()
       .references(() => meeting.id, { onDelete: "cascade" }),
+    // progress | action | lesson
+    kind: text("kind").notNull().default("progress"),
     body: text("body").notNull(),
     authorId: text("author_id")
       .notNull()
       .references(() => user.id, { onDelete: "restrict" }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (table) => [index("meeting_note_meeting_idx").on(table.meetingId)],
+  (table) => [
+    index("meeting_note_meeting_idx").on(table.meetingId),
+    index("meeting_note_meeting_kind_idx").on(table.meetingId, table.kind),
+  ],
 );
 
 export const journalEntry = pgTable(

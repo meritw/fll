@@ -1,7 +1,8 @@
-import { and, asc, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lt, max, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { meeting, meetingAttendee, meetingNote, user } from "@/db/schema";
+import { isNotebookKind, NOTEBOOK_SECTION_LABELS, type NotebookKind } from "@/lib/notebook";
 import {
   parseTeamDateKey,
   teamDateKey,
@@ -16,8 +17,17 @@ const SEED_THROUGH = { year: 2026, month: 12, day: 5 };
 const EVENING_START_HOUR = 18;
 const EVENING_END_HOUR = 20;
 
+export { NOTEBOOK_SECTION_LABELS, isNotebookKind };
+export type { NotebookKind };
+
 export function listSeedSlots() {
-  const slots: { dateKey: string; startsAt: Date; endsAt: Date; seedKey: string }[] = [];
+  const slots: {
+    dateKey: string;
+    startsAt: Date;
+    endsAt: Date;
+    seedKey: string;
+    sessionNumber: number;
+  }[] = [];
   let cursor = zonedDateTime(SEED_FROM.year, SEED_FROM.month, SEED_FROM.day, 12, 0);
   const end = zonedDateTime(SEED_THROUGH.year, SEED_THROUGH.month, SEED_THROUGH.day, 23, 59);
 
@@ -34,6 +44,7 @@ export function listSeedSlots() {
         endsAt,
         // "et" distinguishes from earlier Pacific seeds (`mon-thu:DATE`).
         seedKey: `mon-thu-et:${dateKey}`,
+        sessionNumber: slots.length + 1,
       });
     }
     cursor = new Date(cursor.getTime() + 24 * 60 * 60 * 1000);
@@ -48,10 +59,10 @@ function legacySeedKey(dateKey: string) {
 
 /**
  * Insert Mon/Thu Eastern evening meetings. Safe to re-run:
- * - new installs get correct America/New_York times
+ * - new installs get correct America/New_York times + session numbers
  * - DBs that already seeded Pacific (`mon-thu:DATE`) are rewritten to Eastern
  *   times and renamed to `mon-thu-et:DATE`
- * - existing `mon-thu-et` rows get times corrected if needed
+ * - existing `mon-thu-et` rows get times / session numbers corrected if needed
  */
 export async function ensureRecurringMeetings() {
   const slots = listSeedSlots();
@@ -82,14 +93,12 @@ export async function ensureRecurringMeetings() {
         .set({
           startsAt: slot.startsAt,
           endsAt: slot.endsAt,
+          sessionNumber: slot.sessionNumber,
           updatedAt: now,
         })
         .where(eq(meeting.id, easternRow.id));
 
       if (legacyRow) {
-        // Duplicate from an earlier Pacific seed — drop the unused legacy row
-        // only when it has no attendance or notes; otherwise keep times fixed
-        // on the Eastern key and leave the legacy row (rare).
         const [{ attendeeCount }] = await db
           .select({ attendeeCount: sql<number>`count(*)::int` })
           .from(meetingAttendee)
@@ -106,6 +115,7 @@ export async function ensureRecurringMeetings() {
             .set({
               startsAt: slot.startsAt,
               endsAt: slot.endsAt,
+              sessionNumber: slot.sessionNumber,
               updatedAt: now,
             })
             .where(eq(meeting.id, legacyRow.id));
@@ -121,6 +131,7 @@ export async function ensureRecurringMeetings() {
           startsAt: slot.startsAt,
           endsAt: slot.endsAt,
           seedKey: slot.seedKey,
+          sessionNumber: slot.sessionNumber,
           updatedAt: now,
         })
         .where(eq(meeting.id, legacyRow.id));
@@ -136,6 +147,7 @@ export async function ensureRecurringMeetings() {
         startsAt: slot.startsAt,
         endsAt: slot.endsAt,
         title: "Team meeting",
+        sessionNumber: slot.sessionNumber,
         seedKey: slot.seedKey,
         createdById: null,
       })),
@@ -152,6 +164,7 @@ export async function listMeetings() {
       endsAt: true,
       title: true,
       summary: true,
+      sessionNumber: true,
       seedKey: true,
       attendanceRecordedAt: true,
     },
@@ -171,6 +184,7 @@ export async function listMeetingsForMonth(year: number, month: number) {
       endsAt: meeting.endsAt,
       title: meeting.title,
       summary: meeting.summary,
+      sessionNumber: meeting.sessionNumber,
       attendanceRecordedAt: meeting.attendanceRecordedAt,
     })
     .from(meeting)
@@ -197,26 +211,38 @@ export async function getMeeting(id: string) {
     return null;
   }
 
+  const notes = row.notes.map((note) => ({
+    id: note.id,
+    kind: (isNotebookKind(note.kind) ? note.kind : "progress") as NotebookKind,
+    body: note.body,
+    createdAt: note.createdAt,
+    authorName: note.author.name,
+    authorId: note.author.id,
+  }));
+
   return {
     id: row.id,
     startsAt: row.startsAt,
     endsAt: row.endsAt,
     title: row.title,
     summary: row.summary,
+    sessionNumber: row.sessionNumber,
     seedKey: row.seedKey,
     attendanceRecordedAt: row.attendanceRecordedAt,
     attendanceRecordedBy: row.attendanceRecordedBy,
     attendees: row.attendees
       .map((item) => item.user)
       .sort((left, right) => left.name.localeCompare(right.name)),
-    notes: row.notes.map((note) => ({
-      id: note.id,
-      body: note.body,
-      createdAt: note.createdAt,
-      authorName: note.author.name,
-      authorId: note.author.id,
-    })),
+    notes,
+    progress: notes.filter((note) => note.kind === "progress"),
+    actions: notes.filter((note) => note.kind === "action"),
+    lessons: notes.filter((note) => note.kind === "lesson"),
   };
+}
+
+async function nextSessionNumber() {
+  const [row] = await getDb().select({ value: max(meeting.sessionNumber) }).from(meeting);
+  return (row?.value ?? 0) + 1;
 }
 
 export async function createOneOffMeeting(input: {
@@ -226,6 +252,7 @@ export async function createOneOffMeeting(input: {
   summary?: string;
   startHour?: number;
   endHour?: number;
+  sessionNumber?: number;
 }) {
   const parsed = parseTeamDateKey(input.dateKey);
   if (!parsed) {
@@ -256,6 +283,10 @@ export async function createOneOffMeeting(input: {
     endHour === 24 ? 59 : 0,
   );
   const id = crypto.randomUUID();
+  const sessionNumber =
+    typeof input.sessionNumber === "number" && input.sessionNumber > 0
+      ? Math.floor(input.sessionNumber)
+      : await nextSessionNumber();
 
   await getDb().insert(meeting).values({
     id,
@@ -263,6 +294,7 @@ export async function createOneOffMeeting(input: {
     endsAt,
     title,
     summary,
+    sessionNumber,
     seedKey: null,
     createdById: input.userId,
   });
@@ -319,13 +351,17 @@ export async function addMeetingNote(input: {
   meetingId: string;
   authorId: string;
   body: string;
+  kind: NotebookKind;
 }) {
   const body = input.body.trim();
   if (!body) {
-    return { error: "Write a note first." };
+    return { error: "Write something first." };
   }
   if (body.length > 4000) {
     return { error: "Use a shorter note." };
+  }
+  if (!isNotebookKind(input.kind)) {
+    return { error: "Pick a notebook section." };
   }
 
   const [existing] = await getDb()
@@ -341,6 +377,7 @@ export async function addMeetingNote(input: {
   await getDb().insert(meetingNote).values({
     id,
     meetingId: input.meetingId,
+    kind: input.kind,
     body,
     authorId: input.authorId,
   });
@@ -352,6 +389,7 @@ export async function updateMeetingSummary(input: {
   meetingId: string;
   title?: string;
   summary?: string;
+  sessionNumber?: number | null;
 }) {
   const [existing] = await getDb()
     .select({ id: meeting.id })
@@ -370,12 +408,22 @@ export async function updateMeetingSummary(input: {
   if (summary !== undefined && summary.length > 500) {
     return { error: "Use a shorter summary." };
   }
+  if (
+    input.sessionNumber !== undefined &&
+    input.sessionNumber !== null &&
+    (!Number.isFinite(input.sessionNumber) || input.sessionNumber < 1)
+  ) {
+    return { error: "Session number must be 1 or higher." };
+  }
 
   await getDb()
     .update(meeting)
     .set({
       ...(title !== undefined ? { title: title || null } : {}),
       ...(summary !== undefined ? { summary: summary || null } : {}),
+      ...(input.sessionNumber !== undefined
+        ? { sessionNumber: input.sessionNumber === null ? null : Math.floor(input.sessionNumber) }
+        : {}),
       updatedAt: new Date(),
     })
     .where(eq(meeting.id, input.meetingId));
@@ -390,6 +438,7 @@ export async function listUpcomingMeetings(limit = 20) {
       startsAt: meeting.startsAt,
       endsAt: meeting.endsAt,
       title: meeting.title,
+      sessionNumber: meeting.sessionNumber,
     })
     .from(meeting)
     .where(gte(meeting.startsAt, new Date(Date.now() - 12 * 60 * 60 * 1000)))
@@ -404,10 +453,41 @@ export async function listRecentMeetings(limit = 40) {
       startsAt: meeting.startsAt,
       endsAt: meeting.endsAt,
       title: meeting.title,
+      sessionNumber: meeting.sessionNumber,
     })
     .from(meeting)
     .orderBy(desc(meeting.startsAt))
     .limit(limit);
+}
+
+/** Sessions for the engineering notebook index (newest first). */
+export async function listNotebookSessions(limit = 40) {
+  const rows = await getDb().query.meeting.findMany({
+    orderBy: (table, { desc: orderDesc }) => [orderDesc(table.startsAt)],
+    limit,
+    with: {
+      notes: { columns: { kind: true } },
+      attendees: { columns: { userId: true } },
+    },
+  });
+
+  return rows.map((row) => {
+    const progressCount = row.notes.filter((note) => note.kind === "progress").length;
+    const actionCount = row.notes.filter((note) => note.kind === "action").length;
+    const lessonCount = row.notes.filter((note) => note.kind === "lesson").length;
+    return {
+      id: row.id,
+      startsAt: row.startsAt,
+      endsAt: row.endsAt,
+      title: row.title,
+      sessionNumber: row.sessionNumber,
+      attendeeCount: row.attendees.length,
+      progressCount,
+      actionCount,
+      lessonCount,
+      filled: progressCount + actionCount + lessonCount > 0 || row.attendees.length > 0,
+    };
+  });
 }
 
 export { TEAM_TIME_ZONE, EVENING_START_HOUR, EVENING_END_HOUR };

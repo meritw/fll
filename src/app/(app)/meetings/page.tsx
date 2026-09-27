@@ -62,8 +62,8 @@ export default async function MeetingsPage({
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-semibold">Meetings</h1>
         <p className="text-lg text-muted-foreground">
-          Monday and Thursday evenings ({TEAM_TIME_ZONE}, 6–8 PM {TEAM_TIME_ZONE_ABBR}) plus
-          any one-offs you add.
+          Monday and Thursday evenings ({TEAM_TIME_ZONE}, 6–8 PM {TEAM_TIME_ZONE_ABBR}). Open a
+          night to fill the engineering notebook page (attendance, progress, actions, lessons).
         </p>
       </div>
 
@@ -88,7 +88,11 @@ export default async function MeetingsPage({
                   href={`/meetings/${item.id}`}
                   className="block rounded-xl bg-card px-4 py-4 text-lg ring-1 ring-foreground/10 underline-offset-4 hover:underline"
                 >
-                  <span className="font-medium">{item.title?.trim() || "Team meeting"}</span>
+                  <span className="font-medium">
+                    {item.sessionNumber != null
+                      ? `Session ${item.sessionNumber}`
+                      : item.title?.trim() || "Team meeting"}
+                  </span>
                   <span className="mt-1 block text-muted-foreground">
                     {formatMeetingWhen(item.startsAt, item.endsAt)}
                   </span>

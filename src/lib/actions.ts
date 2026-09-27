@@ -15,6 +15,7 @@ import {
   saveAttendance,
   updateMeetingSummary,
 } from "@/lib/meetings";
+import { isNotebookKind } from "@/lib/notebook";
 import {
   addProgramVersion,
   createProgram,
@@ -213,6 +214,7 @@ export async function addOneOffMeeting(
   const session = await requireUser();
   const startHourRaw = String(formData.get("startHour") ?? "18");
   const endHourRaw = String(formData.get("endHour") ?? "20");
+  const sessionRaw = String(formData.get("sessionNumber") ?? "").trim();
   const result = await createOneOffMeeting({
     userId: session.user.id,
     dateKey: String(formData.get("dateKey") ?? ""),
@@ -220,11 +222,13 @@ export async function addOneOffMeeting(
     summary: String(formData.get("summary") ?? ""),
     startHour: Number(startHourRaw),
     endHour: Number(endHourRaw),
+    sessionNumber: sessionRaw ? Number(sessionRaw) : undefined,
   });
   if ("error" in result) {
     return result;
   }
   revalidatePath("/meetings");
+  revalidatePath("/journal");
   revalidatePath(`/meetings/${result.id}`);
   redirect(`/meetings/${result.id}`);
 }
@@ -245,6 +249,7 @@ export async function recordMeetingAttendance(
     return result;
   }
   revalidatePath("/meetings");
+  revalidatePath("/journal");
   revalidatePath(`/meetings/${meetingId}`);
   return { message: "Attendance saved." };
 }
@@ -255,16 +260,22 @@ export async function postMeetingNote(
 ): Promise<ActionState> {
   const session = await requireUser();
   const meetingId = String(formData.get("meetingId") ?? "");
+  const kindRaw = String(formData.get("kind") ?? "progress");
+  if (!isNotebookKind(kindRaw)) {
+    return { error: "Pick a notebook section." };
+  }
   const result = await addMeetingNote({
     meetingId,
     authorId: session.user.id,
     body: String(formData.get("body") ?? ""),
+    kind: kindRaw,
   });
   if ("error" in result) {
     return result;
   }
   revalidatePath(`/meetings/${meetingId}`);
-  return { message: "Note added." };
+  revalidatePath("/journal");
+  return { message: "Added to the notebook." };
 }
 
 export async function saveMeetingDetails(
@@ -273,17 +284,20 @@ export async function saveMeetingDetails(
 ): Promise<ActionState> {
   await requireUser();
   const meetingId = String(formData.get("meetingId") ?? "");
+  const sessionRaw = String(formData.get("sessionNumber") ?? "").trim();
   const result = await updateMeetingSummary({
     meetingId,
     title: String(formData.get("title") ?? ""),
     summary: String(formData.get("summary") ?? ""),
+    sessionNumber: sessionRaw ? Number(sessionRaw) : null,
   });
   if ("error" in result) {
     return result;
   }
   revalidatePath("/meetings");
+  revalidatePath("/journal");
   revalidatePath(`/meetings/${meetingId}`);
-  return { message: "Meeting updated." };
+  return { message: "Session updated." };
 }
 
 export async function addJournalEntry(

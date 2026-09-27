@@ -5,13 +5,18 @@ import { notFound } from "next/navigation";
 import {
   AttendanceForm,
   MeetingDetailsForm,
-  MeetingNoteForm,
+  NotebookSection,
 } from "@/components/meeting-forms";
 import { Separator } from "@/components/ui/separator";
 import { listPeople } from "@/lib/accounts";
 import { getMeeting } from "@/lib/meetings";
 import { requireUser } from "@/lib/session";
-import { formatMeetingWhen, formatTeamStamp, TEAM_TIME_ZONE_ABBR } from "@/lib/timezone";
+import {
+  formatMeetingWhen,
+  formatTeamDay,
+  formatTeamStamp,
+  TEAM_TIME_ZONE_ABBR,
+} from "@/lib/timezone";
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -20,9 +25,12 @@ type PageProps = {
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { id } = await params;
   const meeting = await getMeeting(id);
-  return {
-    title: meeting?.title?.trim() || "Meeting",
-  };
+  if (!meeting) {
+    return { title: "Session" };
+  }
+  const session =
+    meeting.sessionNumber != null ? `Session ${meeting.sessionNumber}` : "Session";
+  return { title: session };
 }
 
 export default async function MeetingDetailPage({ params }: PageProps) {
@@ -34,6 +42,7 @@ export default async function MeetingDetailPage({ params }: PageProps) {
   }
 
   const selectedIds = meeting.attendees.map((person) => person.id);
+  const stamp = (value: Date) => `${formatTeamStamp(value)} ${TEAM_TIME_ZONE_ABBR}`;
 
   return (
     <div className="flex flex-col gap-8">
@@ -41,18 +50,29 @@ export default async function MeetingDetailPage({ params }: PageProps) {
         <Link href="/meetings" className="text-base font-medium underline-offset-4 hover:underline">
           ← All meetings
         </Link>
-        <h1 className="text-3xl font-semibold">{meeting.title?.trim() || "Team meeting"}</h1>
+        <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
+          Engineering notebook
+        </p>
+        <h1 className="text-3xl font-semibold">
+          {meeting.sessionNumber != null
+            ? `Session ${meeting.sessionNumber}`
+            : meeting.title?.trim() || "Team session"}
+        </h1>
+        <p className="text-xl">
+          <span className="font-medium">Date:</span> {formatTeamDay(meeting.startsAt)}
+        </p>
         <p className="text-lg text-muted-foreground">
           {formatMeetingWhen(meeting.startsAt, meeting.endsAt)}
         </p>
-        {meeting.summary ? <p className="text-lg">{meeting.summary}</p> : null}
       </div>
 
-      <MeetingDetailsForm
-        meetingId={meeting.id}
-        title={meeting.title}
-        summary={meeting.summary}
-      />
+      <div className="rounded-xl bg-card px-4 py-4 ring-1 ring-foreground/10">
+        <MeetingDetailsForm
+          meetingId={meeting.id}
+          title={meeting.title}
+          sessionNumber={meeting.sessionNumber}
+        />
+      </div>
 
       <Separator />
 
@@ -60,11 +80,9 @@ export default async function MeetingDetailPage({ params }: PageProps) {
         {meeting.attendanceRecordedAt && meeting.attendanceRecordedBy ? (
           <p className="text-muted-foreground">
             Attendance last saved by {meeting.attendanceRecordedBy.name} on{" "}
-            {formatTeamStamp(meeting.attendanceRecordedAt)} {TEAM_TIME_ZONE_ABBR}.
+            {stamp(meeting.attendanceRecordedAt)}.
           </p>
-        ) : (
-          <p className="text-muted-foreground">Attendance not recorded yet.</p>
-        )}
+        ) : null}
         <AttendanceForm
           key={`${meeting.id}-${meeting.attendanceRecordedAt?.toISOString() ?? "none"}`}
           meetingId={meeting.id}
@@ -79,30 +97,42 @@ export default async function MeetingDetailPage({ params }: PageProps) {
 
       <Separator />
 
-      <section className="flex flex-col gap-4">
-        <h2 className="text-2xl font-semibold">Notes</h2>
-        {meeting.notes.length === 0 ? (
-          <p className="text-muted-foreground">No notes yet. Add the first one below.</p>
-        ) : (
-          <ol className="flex flex-col gap-4">
-            {meeting.notes.map((note) => (
-              <li
-                key={note.id}
-                className="rounded-xl bg-card px-4 py-4 ring-1 ring-foreground/10"
-              >
-                <div className="mb-2 flex flex-wrap gap-x-3 gap-y-1 text-base text-muted-foreground">
-                  <span className="font-medium text-foreground">{note.authorName}</span>
-                  <span>
-                    {formatTeamStamp(note.createdAt)} {TEAM_TIME_ZONE_ABBR}
-                  </span>
-                </div>
-                <p className="whitespace-pre-wrap text-lg">{note.body}</p>
-              </li>
-            ))}
-          </ol>
-        )}
-        <MeetingNoteForm meetingId={meeting.id} />
-      </section>
+      <NotebookSection
+        meetingId={meeting.id}
+        kind="progress"
+        items={meeting.progress.map((item) => ({
+          id: item.id,
+          body: item.body,
+          authorName: item.authorName,
+          createdLabel: stamp(item.createdAt),
+        }))}
+      />
+
+      <Separator />
+
+      <NotebookSection
+        meetingId={meeting.id}
+        kind="action"
+        items={meeting.actions.map((item) => ({
+          id: item.id,
+          body: item.body,
+          authorName: item.authorName,
+          createdLabel: stamp(item.createdAt),
+        }))}
+      />
+
+      <Separator />
+
+      <NotebookSection
+        meetingId={meeting.id}
+        kind="lesson"
+        items={meeting.lessons.map((item) => ({
+          id: item.id,
+          body: item.body,
+          authorName: item.authorName,
+          createdLabel: stamp(item.createdAt),
+        }))}
+      />
     </div>
   );
 }

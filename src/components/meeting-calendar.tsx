@@ -6,6 +6,7 @@ type CalendarMeeting = {
   id: string;
   startsAt: Date;
   title: string | null;
+  sessionNumber?: number | null;
 };
 
 type DayCell = {
@@ -103,7 +104,9 @@ export function MeetingCalendar({
                       href={`/meetings/${item.id}`}
                       className="block rounded-md bg-primary/10 px-1.5 py-1 text-sm font-medium text-foreground underline-offset-2 hover:bg-primary/20 hover:underline"
                     >
-                      {item.title?.trim() || "Meeting"}
+                      {item.sessionNumber != null
+                        ? `Session ${item.sessionNumber}`
+                        : item.title?.trim() || "Meeting"}
                     </Link>
                   </li>
                 ))}
