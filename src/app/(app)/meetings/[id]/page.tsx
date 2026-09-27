@@ -7,8 +7,10 @@ import {
   MeetingDetailsForm,
   NotebookSection,
 } from "@/components/meeting-forms";
+import { MeetingMediaSection } from "@/components/meeting-media";
 import { Separator } from "@/components/ui/separator";
 import { listPeople } from "@/lib/accounts";
+import { listMeetingMedia } from "@/lib/media";
 import { getMeeting } from "@/lib/meetings";
 import { requireUser } from "@/lib/session";
 import {
@@ -36,7 +38,11 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function MeetingDetailPage({ params }: PageProps) {
   await requireUser();
   const { id } = await params;
-  const [meeting, people] = await Promise.all([getMeeting(id), listPeople()]);
+  const [meeting, people, media] = await Promise.all([
+    getMeeting(id),
+    listPeople(),
+    listMeetingMedia(id),
+  ]);
   if (!meeting) {
     notFound();
   }
@@ -130,6 +136,19 @@ export default async function MeetingDetailPage({ params }: PageProps) {
           id: item.id,
           body: item.body,
           authorName: item.authorName,
+          createdLabel: stamp(item.createdAt),
+        }))}
+      />
+
+      <Separator />
+
+      <MeetingMediaSection
+        meetingId={meeting.id}
+        items={media.map((item) => ({
+          id: item.id,
+          contentType: item.contentType,
+          caption: item.caption,
+          uploaderName: item.uploaderName,
           createdLabel: stamp(item.createdAt),
         }))}
       />

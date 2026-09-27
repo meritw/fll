@@ -20,6 +20,9 @@ export function Header({ name, isCoach }: { name: string; isCoach: boolean }) {
           <Link href="/journal" className="font-medium underline-offset-4 hover:underline">
             Journal
           </Link>
+          <Link href="/gallery" className="font-medium underline-offset-4 hover:underline">
+            Gallery
+          </Link>
           {isCoach ? (
             <Link href="/admin" className="font-medium underline-offset-4 hover:underline">
               People

@@ -15,3 +15,9 @@ export function safeFileName(name: string) {
   const withName = cleaned.length > 0 ? cleaned : "program.llsp3";
   return withName.toLowerCase().endsWith(".llsp3") ? withName : `${withName}.llsp3`;
 }
+
+export function safeMediaFileName(name: string, fallback = "upload") {
+  const base = name.split(/[/\\]/).pop() ?? fallback;
+  const cleaned = base.replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/^-+|-+$/g, "");
+  return cleaned.length > 0 ? cleaned : fallback;
+}

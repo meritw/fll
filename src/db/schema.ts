@@ -146,6 +146,30 @@ export const journalEntry = pgTable(
   (table) => [index("journal_entry_created_at_idx").on(table.createdAt)],
 );
 
+/** Photos/videos attached to a meeting session (Neon object storage). */
+export const meetingMedia = pgTable(
+  "meeting_media",
+  {
+    id: text("id").primaryKey(),
+    meetingId: text("meeting_id")
+      .notNull()
+      .references(() => meeting.id, { onDelete: "cascade" }),
+    uploaderId: text("uploader_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "restrict" }),
+    objectKey: text("object_key").notNull(),
+    contentType: text("content_type").notNull(),
+    size: integer("size").notNull(),
+    caption: text("caption"),
+    fileName: text("file_name").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("meeting_media_meeting_idx").on(table.meetingId),
+    index("meeting_media_created_at_idx").on(table.createdAt),
+  ],
+);
+
 export const userRelations = relations(user, ({ many }) => ({
   sessions: many(session),
   accounts: many(account),
@@ -156,6 +180,7 @@ export const userRelations = relations(user, ({ many }) => ({
   meetingAttendances: many(meetingAttendee),
   meetingNotes: many(meetingNote),
   journalEntries: many(journalEntry),
+  meetingMediaUploads: many(meetingMedia),
 }));
 
 export const missionRelations = relations(mission, ({ many }) => ({
@@ -206,6 +231,7 @@ export const meetingRelations = relations(meeting, ({ one, many }) => ({
   }),
   attendees: many(meetingAttendee),
   notes: many(meetingNote),
+  media: many(meetingMedia),
   journalEntries: many(journalEntry),
 }));
 
@@ -239,5 +265,16 @@ export const journalEntryRelations = relations(journalEntry, ({ one }) => ({
   relatedMeeting: one(meeting, {
     fields: [journalEntry.relatedMeetingId],
     references: [meeting.id],
+  }),
+}));
+
+export const meetingMediaRelations = relations(meetingMedia, ({ one }) => ({
+  meeting: one(meeting, {
+    fields: [meetingMedia.meetingId],
+    references: [meeting.id],
+  }),
+  uploader: one(user, {
+    fields: [meetingMedia.uploaderId],
+    references: [user.id],
   }),
 }));
