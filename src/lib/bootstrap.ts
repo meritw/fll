@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { mission, user } from "@/db/schema";
 import { createAccount } from "@/lib/accounts";
+import { ensureRecurringMeetings } from "@/lib/meetings";
 import { MISSIONS } from "@/lib/missions";
 
 export async function ensureMissions() {
@@ -67,7 +68,12 @@ export async function ensureFirstCoach() {
   }
 }
 
+export async function ensureMeetings() {
+  await ensureRecurringMeetings();
+}
+
 export async function bootstrap() {
   await ensureMissions();
   await ensureFirstCoach();
+  await ensureMeetings();
 }
