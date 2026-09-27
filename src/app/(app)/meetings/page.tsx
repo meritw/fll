@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { CalendarSubscribe } from "@/components/calendar-subscribe";
 import { AddMeetingForm } from "@/components/meeting-forms";
 import { MeetingCalendar } from "@/components/meeting-calendar";
 import { Separator } from "@/components/ui/separator";
+import { meetingsIcsSubscribeUrl, meetingsIcsToken } from "@/lib/ics";
 import { listMeetingsForMonth, listUpcomingMeetings } from "@/lib/meetings";
 import { formatMeetingWhen, teamDateKey, TEAM_TIME_ZONE, TEAM_TIME_ZONE_ABBR } from "@/lib/timezone";
 import { requireUser } from "@/lib/session";
@@ -74,6 +76,11 @@ export default async function MeetingsPage({
         label={monthLabel(year, month)}
         prevHref={`/meetings?month=${prev.year}-${String(prev.month).padStart(2, "0")}`}
         nextHref={`/meetings?month=${next.year}-${String(next.month).padStart(2, "0")}`}
+      />
+
+      <CalendarSubscribe
+        subscribeUrl={meetingsIcsSubscribeUrl()}
+        tokenRequired={Boolean(meetingsIcsToken())}
       />
 
       <section className="flex flex-col gap-4">
