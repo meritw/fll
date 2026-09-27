@@ -9,10 +9,16 @@ export function Header({ name, isCoach }: { name: string; isCoach: boolean }) {
         <Link href="/programs" className="text-2xl font-semibold">
           Rolling Sparks
         </Link>
-        <div className="flex items-center gap-3">
+        <nav className="flex flex-wrap items-center justify-end gap-3">
           <span className="hidden sm:inline">{name}</span>
           <Link href="/programs" className="font-medium underline-offset-4 hover:underline">
             Programs
+          </Link>
+          <Link href="/meetings" className="font-medium underline-offset-4 hover:underline">
+            Meetings
+          </Link>
+          <Link href="/journal" className="font-medium underline-offset-4 hover:underline">
+            Journal
           </Link>
           {isCoach ? (
             <Link href="/admin" className="font-medium underline-offset-4 hover:underline">
@@ -20,7 +26,7 @@ export function Header({ name, isCoach }: { name: string; isCoach: boolean }) {
             </Link>
           ) : null}
           <SignOutButton />
-        </div>
+        </nav>
       </div>
     </header>
   );

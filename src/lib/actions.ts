@@ -7,7 +7,14 @@ import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { clearMustChangePassword, createAccount, resetStudentPassword } from "@/lib/accounts";
 import { findDeliverableCoach } from "@/lib/coaches";
+import { createJournalEntry } from "@/lib/journal";
 import { VAGUE_EMAIL_MESSAGE } from "@/lib/messages";
+import {
+  addMeetingNote,
+  createOneOffMeeting,
+  saveAttendance,
+  updateMeetingSummary,
+} from "@/lib/meetings";
 import {
   addProgramVersion,
   createProgram,
@@ -197,6 +204,105 @@ export async function completeForcedPasswordChange(input: {
 
   await clearMustChangePassword(session.user.id);
   return { message: "Password saved." };
+}
+
+export async function addOneOffMeeting(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const session = await requireUser();
+  const startHourRaw = String(formData.get("startHour") ?? "18");
+  const endHourRaw = String(formData.get("endHour") ?? "20");
+  const result = await createOneOffMeeting({
+    userId: session.user.id,
+    dateKey: String(formData.get("dateKey") ?? ""),
+    title: String(formData.get("title") ?? ""),
+    summary: String(formData.get("summary") ?? ""),
+    startHour: Number(startHourRaw),
+    endHour: Number(endHourRaw),
+  });
+  if ("error" in result) {
+    return result;
+  }
+  revalidatePath("/meetings");
+  revalidatePath(`/meetings/${result.id}`);
+  redirect(`/meetings/${result.id}`);
+}
+
+export async function recordMeetingAttendance(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const session = await requireUser();
+  const meetingId = String(formData.get("meetingId") ?? "");
+  const attendeeIds = formData.getAll("attendeeIds").map(String);
+  const result = await saveAttendance({
+    meetingId,
+    recordedById: session.user.id,
+    attendeeIds,
+  });
+  if ("error" in result) {
+    return result;
+  }
+  revalidatePath("/meetings");
+  revalidatePath(`/meetings/${meetingId}`);
+  return { message: "Attendance saved." };
+}
+
+export async function postMeetingNote(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const session = await requireUser();
+  const meetingId = String(formData.get("meetingId") ?? "");
+  const result = await addMeetingNote({
+    meetingId,
+    authorId: session.user.id,
+    body: String(formData.get("body") ?? ""),
+  });
+  if ("error" in result) {
+    return result;
+  }
+  revalidatePath(`/meetings/${meetingId}`);
+  return { message: "Note added." };
+}
+
+export async function saveMeetingDetails(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  await requireUser();
+  const meetingId = String(formData.get("meetingId") ?? "");
+  const result = await updateMeetingSummary({
+    meetingId,
+    title: String(formData.get("title") ?? ""),
+    summary: String(formData.get("summary") ?? ""),
+  });
+  if ("error" in result) {
+    return result;
+  }
+  revalidatePath("/meetings");
+  revalidatePath(`/meetings/${meetingId}`);
+  return { message: "Meeting updated." };
+}
+
+export async function addJournalEntry(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const session = await requireUser();
+  const related = String(formData.get("relatedMeetingId") ?? "").trim();
+  const result = await createJournalEntry({
+    authorId: session.user.id,
+    title: String(formData.get("title") ?? ""),
+    body: String(formData.get("body") ?? ""),
+    relatedMeetingId: related || null,
+  });
+  if ("error" in result) {
+    return result;
+  }
+  revalidatePath("/journal");
+  return { message: "Journal entry saved." };
 }
 
 export type ActionState = {
