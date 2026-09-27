@@ -77,6 +77,7 @@ export const meeting = pgTable(
     title: text("title"),
     summary: text("summary"),
     // Unique key for seeded Mon/Thu sessions so re-seed skips duplicates.
+    // Current keys: mon-thu-et:YYYY-MM-DD (Eastern). Legacy Pacific: mon-thu:YYYY-MM-DD.
     seedKey: text("seed_key").unique(),
     createdById: text("created_by_id").references(() => user.id, {
       onDelete: "set null",

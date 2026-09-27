@@ -6,7 +6,7 @@ import { Separator } from "@/components/ui/separator";
 import { listJournalEntries } from "@/lib/journal";
 import { listRecentMeetings } from "@/lib/meetings";
 import { requireUser } from "@/lib/session";
-import { formatMeetingWhen, formatTeamStamp } from "@/lib/timezone";
+import { formatMeetingWhen, formatTeamStamp, TEAM_TIME_ZONE_ABBR } from "@/lib/timezone";
 
 export const metadata: Metadata = {
   title: "Journal",
@@ -53,7 +53,9 @@ export default async function JournalPage() {
                 ) : null}
                 <div className="mb-3 flex flex-wrap gap-x-3 gap-y-1 text-base text-muted-foreground">
                   <span className="font-medium text-foreground">{entry.authorName}</span>
-                  <span>{formatTeamStamp(entry.createdAt)} PT</span>
+                  <span>
+                    {formatTeamStamp(entry.createdAt)} {TEAM_TIME_ZONE_ABBR}
+                  </span>
                   {entry.relatedMeeting ? (
                     <Link
                       href={`/meetings/${entry.relatedMeeting.id}`}

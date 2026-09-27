@@ -11,7 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { listPeople } from "@/lib/accounts";
 import { getMeeting } from "@/lib/meetings";
 import { requireUser } from "@/lib/session";
-import { formatMeetingWhen, formatTeamStamp } from "@/lib/timezone";
+import { formatMeetingWhen, formatTeamStamp, TEAM_TIME_ZONE_ABBR } from "@/lib/timezone";
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -60,7 +60,7 @@ export default async function MeetingDetailPage({ params }: PageProps) {
         {meeting.attendanceRecordedAt && meeting.attendanceRecordedBy ? (
           <p className="text-muted-foreground">
             Attendance last saved by {meeting.attendanceRecordedBy.name} on{" "}
-            {formatTeamStamp(meeting.attendanceRecordedAt)} PT.
+            {formatTeamStamp(meeting.attendanceRecordedAt)} {TEAM_TIME_ZONE_ABBR}.
           </p>
         ) : (
           <p className="text-muted-foreground">Attendance not recorded yet.</p>
@@ -92,7 +92,9 @@ export default async function MeetingDetailPage({ params }: PageProps) {
               >
                 <div className="mb-2 flex flex-wrap gap-x-3 gap-y-1 text-base text-muted-foreground">
                   <span className="font-medium text-foreground">{note.authorName}</span>
-                  <span>{formatTeamStamp(note.createdAt)} PT</span>
+                  <span>
+                    {formatTeamStamp(note.createdAt)} {TEAM_TIME_ZONE_ABBR}
+                  </span>
                 </div>
                 <p className="whitespace-pre-wrap text-lg">{note.body}</p>
               </li>

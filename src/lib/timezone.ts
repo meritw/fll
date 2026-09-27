@@ -1,6 +1,9 @@
-/** Team evenings are scheduled in America/Los_Angeles. */
+/** Team evenings are scheduled in America/New_York (Eastern). */
 
-export const TEAM_TIME_ZONE = "America/Los_Angeles";
+export const TEAM_TIME_ZONE = "America/New_York";
+
+/** Short label for meeting times in UI copy. */
+export const TEAM_TIME_ZONE_ABBR = "ET";
 
 const datePartsFormatter = new Intl.DateTimeFormat("en-US", {
   timeZone: TEAM_TIME_ZONE,
@@ -35,8 +38,8 @@ export function teamWeekday(value: Date) {
 }
 
 /**
- * Build a Date for a wall-clock time in America/Los_Angeles.
- * Uses a short UTC probe then corrects the offset (handles PST/PDT).
+ * Build a Date for a wall-clock time in America/New_York.
+ * Uses a short UTC probe then corrects the offset (handles EST/EDT).
  */
 export function zonedDateTime(
   year: number,
@@ -85,7 +88,7 @@ export function formatMeetingWhen(startsAt: Date, endsAt: Date) {
     hour: "numeric",
     minute: "2-digit",
   });
-  return `${day} · ${time.format(startsAt)}–${time.format(endsAt)} PT`;
+  return `${day} · ${time.format(startsAt)}–${time.format(endsAt)} ${TEAM_TIME_ZONE_ABBR}`;
 }
 
 export function formatTeamStamp(value: Date) {

@@ -5,7 +5,7 @@ import { AddMeetingForm } from "@/components/meeting-forms";
 import { MeetingCalendar } from "@/components/meeting-calendar";
 import { Separator } from "@/components/ui/separator";
 import { listMeetingsForMonth, listUpcomingMeetings } from "@/lib/meetings";
-import { formatMeetingWhen, teamDateKey, TEAM_TIME_ZONE } from "@/lib/timezone";
+import { formatMeetingWhen, teamDateKey, TEAM_TIME_ZONE, TEAM_TIME_ZONE_ABBR } from "@/lib/timezone";
 import { requireUser } from "@/lib/session";
 
 export const metadata: Metadata = {
@@ -62,7 +62,8 @@ export default async function MeetingsPage({
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-semibold">Meetings</h1>
         <p className="text-lg text-muted-foreground">
-          Monday and Thursday evenings ({TEAM_TIME_ZONE}, 6–8 PM) plus any one-offs you add.
+          Monday and Thursday evenings ({TEAM_TIME_ZONE}, 6–8 PM {TEAM_TIME_ZONE_ABBR}) plus
+          any one-offs you add.
         </p>
       </div>
 

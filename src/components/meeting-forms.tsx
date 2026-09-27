@@ -37,7 +37,7 @@ export function AddMeetingForm({ defaultDate }: { defaultDate: string }) {
     <form action={formAction} className="flex flex-col gap-4">
       <h2 className="text-2xl font-semibold">Add a one-off meeting</h2>
       <p className="text-muted-foreground">
-        Times are America/Los_Angeles evenings. Default is 6:00–8:00 PM.
+        Times are America/New_York (Eastern) evenings. Default is 6:00–8:00 PM.
       </p>
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="flex flex-col gap-2">

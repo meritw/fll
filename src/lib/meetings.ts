@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, lt } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { meeting, meetingAttendee, meetingNote, user } from "@/db/schema";
@@ -32,7 +32,8 @@ export function listSeedSlots() {
         dateKey,
         startsAt,
         endsAt,
-        seedKey: `mon-thu:${dateKey}`,
+        // "et" distinguishes from earlier Pacific seeds (`mon-thu:DATE`).
+        seedKey: `mon-thu-et:${dateKey}`,
       });
     }
     cursor = new Date(cursor.getTime() + 24 * 60 * 60 * 1000);
@@ -41,13 +42,93 @@ export function listSeedSlots() {
   return slots;
 }
 
+function legacySeedKey(dateKey: string) {
+  return `mon-thu:${dateKey}`;
+}
+
+/**
+ * Insert Mon/Thu Eastern evening meetings. Safe to re-run:
+ * - new installs get correct America/New_York times
+ * - DBs that already seeded Pacific (`mon-thu:DATE`) are rewritten to Eastern
+ *   times and renamed to `mon-thu-et:DATE`
+ * - existing `mon-thu-et` rows get times corrected if needed
+ */
 export async function ensureRecurringMeetings() {
   const slots = listSeedSlots();
   if (slots.length === 0) {
     return;
   }
 
-  await getDb()
+  const db = getDb();
+
+  for (const slot of slots) {
+    const now = new Date();
+    const legacyKey = legacySeedKey(slot.dateKey);
+
+    const existing = await db
+      .select({
+        id: meeting.id,
+        seedKey: meeting.seedKey,
+      })
+      .from(meeting)
+      .where(inArray(meeting.seedKey, [slot.seedKey, legacyKey]));
+
+    const easternRow = existing.find((row) => row.seedKey === slot.seedKey);
+    const legacyRow = existing.find((row) => row.seedKey === legacyKey);
+
+    if (easternRow) {
+      await db
+        .update(meeting)
+        .set({
+          startsAt: slot.startsAt,
+          endsAt: slot.endsAt,
+          updatedAt: now,
+        })
+        .where(eq(meeting.id, easternRow.id));
+
+      if (legacyRow) {
+        // Duplicate from an earlier Pacific seed — drop the unused legacy row
+        // only when it has no attendance or notes; otherwise keep times fixed
+        // on the Eastern key and leave the legacy row (rare).
+        const [{ attendeeCount }] = await db
+          .select({ attendeeCount: sql<number>`count(*)::int` })
+          .from(meetingAttendee)
+          .where(eq(meetingAttendee.meetingId, legacyRow.id));
+        const [{ noteCount }] = await db
+          .select({ noteCount: sql<number>`count(*)::int` })
+          .from(meetingNote)
+          .where(eq(meetingNote.meetingId, legacyRow.id));
+        if (attendeeCount === 0 && noteCount === 0) {
+          await db.delete(meeting).where(eq(meeting.id, legacyRow.id));
+        } else {
+          await db
+            .update(meeting)
+            .set({
+              startsAt: slot.startsAt,
+              endsAt: slot.endsAt,
+              updatedAt: now,
+            })
+            .where(eq(meeting.id, legacyRow.id));
+        }
+      }
+      continue;
+    }
+
+    if (legacyRow) {
+      await db
+        .update(meeting)
+        .set({
+          startsAt: slot.startsAt,
+          endsAt: slot.endsAt,
+          seedKey: slot.seedKey,
+          updatedAt: now,
+        })
+        .where(eq(meeting.id, legacyRow.id));
+      continue;
+    }
+  }
+
+  await db
     .insert(meeting)
     .values(
       slots.map((slot) => ({
