@@ -448,6 +448,21 @@ export async function listUpcomingMeetings(limit = 20) {
     .limit(limit);
 }
 
+/** Schedule-only rows for the public .ics feed (no notes, attendance, or summary). */
+export async function listMeetingsForCalendar() {
+  return getDb()
+    .select({
+      id: meeting.id,
+      startsAt: meeting.startsAt,
+      endsAt: meeting.endsAt,
+      title: meeting.title,
+      sessionNumber: meeting.sessionNumber,
+      updatedAt: meeting.updatedAt,
+    })
+    .from(meeting)
+    .orderBy(asc(meeting.startsAt));
+}
+
 export async function listRecentMeetings(limit = 40) {
   return getDb()
     .select({
