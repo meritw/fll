@@ -11,8 +11,10 @@ import {
   zonedDateTime,
 } from "@/lib/timezone";
 
-/** Seed window: Mon/Thu evenings through Dec 5, 2026 (inclusive end date). */
-const SEED_FROM = { year: 2026, month: 9, day: 27 };
+/** Seed window: Mon/Thu evenings through Dec 5, 2026 (inclusive end date).
+ * Session 1 is Thu 2026-09-24 (first team meeting); Mon 2026-09-28 is Session 2.
+ */
+const SEED_FROM = { year: 2026, month: 9, day: 24 };
 const SEED_THROUGH = { year: 2026, month: 12, day: 5 };
 const EVENING_START_HOUR = 18;
 const EVENING_END_HOUR = 20;
