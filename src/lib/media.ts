@@ -122,7 +122,7 @@ async function assertUploadedMedia(input: {
     return { ok: false, error: "The file did not upload. Try again." };
   }
   if (!Number.isFinite(input.size) || input.size <= 0 || input.size > MAX_MEDIA_BYTES) {
-    return { ok: false, error: "That file is too large (32 MB max)." };
+    return { ok: false, error: "That file is too large (512 MB max)." };
   }
 
   try {
@@ -131,7 +131,7 @@ async function assertUploadedMedia(input: {
       return { ok: false, error: "File saving is not set up yet. Ask a coach." };
     }
     if (meta.size <= 0 || meta.size > MAX_MEDIA_BYTES) {
-      return { ok: false, error: "That file is too large (32 MB max)." };
+      return { ok: false, error: "That file is too large (512 MB max)." };
     }
     return {
       ok: true,
