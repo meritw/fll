@@ -14,7 +14,7 @@ const fieldClass = "h-12 px-3 text-lg md:text-lg";
 const ACCEPT =
   "image/jpeg,image/png,image/webp,image/heic,image/heif,video/mp4,video/quicktime,video/webm,.jpg,.jpeg,.png,.webp,.heic,.heif,.mp4,.mov,.webm";
 
-const MAX_BYTES = 32 * 1024 * 1024;
+const MAX_BYTES = 512 * 1024 * 1024;
 
 const EXT_TO_TYPE: Record<string, string> = {
   jpg: "image/jpeg",
@@ -80,7 +80,7 @@ export function MeetingMediaSection({
         return;
       }
       if (file.size <= 0 || file.size > MAX_BYTES) {
-        setError("That file is too large (32 MB max).");
+        setError("That file is too large (512 MB max).");
         return;
       }
 
@@ -154,7 +154,7 @@ export function MeetingMediaSection({
     <section className="flex flex-col gap-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-2xl font-semibold">Photos &amp; videos</h2>
-        <p className="text-muted-foreground">Attach to this session (32 MB max).</p>
+        <p className="text-muted-foreground">Attach to this session (512 MB max).</p>
       </div>
 
       {items.length === 0 ? (
