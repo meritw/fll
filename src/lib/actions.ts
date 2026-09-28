@@ -8,6 +8,7 @@ import { auth } from "@/lib/auth";
 import { clearMustChangePassword, createAccount, resetStudentPassword } from "@/lib/accounts";
 import { findDeliverableCoach } from "@/lib/coaches";
 import { createJournalEntry } from "@/lib/journal";
+import { attachMeetingMedia } from "@/lib/media";
 import { VAGUE_EMAIL_MESSAGE } from "@/lib/messages";
 import {
   addMeetingNote,
@@ -317,6 +318,28 @@ export async function addJournalEntry(
   }
   revalidatePath("/journal");
   return { message: "Journal entry saved." };
+}
+
+export async function saveMeetingMedia(input: {
+  meetingId: string;
+  objectKey: string;
+  contentType: string;
+  size: number;
+  fileName: string;
+  caption?: string;
+}) {
+  const session = await requireUser();
+  const result = await attachMeetingMedia({
+    ...input,
+    uploaderId: session.user.id,
+  });
+  if ("error" in result) {
+    return result;
+  }
+  revalidatePath(`/meetings/${input.meetingId}`);
+  revalidatePath("/gallery");
+  revalidatePath("/journal");
+  return { message: "Photo or video added.", id: result.id };
 }
 
 export type ActionState = {
