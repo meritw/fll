@@ -1,13 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionCookie } from "better-auth/cookies";
 
-const publicPaths = ["/login", "/reset-password", "/api/auth", "/api/meetings.ics"];
+const publicPaths = ["/", "/login", "/reset-password", "/api/auth", "/api/meetings.ics"];
+
+function isPublicPath(pathname: string) {
+  if (pathname === "/") {
+    return true;
+  }
+  return publicPaths.some(
+    (path) => path !== "/" && (pathname === path || pathname.startsWith(`${path}/`)),
+  );
+}
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const isPublic = publicPaths.some(
-    (path) => pathname === path || pathname.startsWith(`${path}/`),
-  );
+  const isPublic = isPublicPath(pathname);
   const hasSession = Boolean(getSessionCookie(request));
 
   if (!hasSession && !isPublic) {
