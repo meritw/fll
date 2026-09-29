@@ -16,10 +16,15 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Rolling Sparks",
+    default: "Rolling Sparks · FLL Team 55900",
     template: "%s · Rolling Sparks",
   },
-  description: "Spike Prime programs for the Rolling Sparks FLL team.",
+  description:
+    "Education site for Rolling Sparks, FIRST LEGO League Challenge team 55900 from Penfield Central School District. Robot programs, engineering notebook, and team resources.",
+  robots: {
+    index: true,
+    follow: true,
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
