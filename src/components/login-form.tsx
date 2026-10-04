@@ -9,10 +9,31 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { requestEmailCode, requestMagicLink, requestPasswordReset } from "@/lib/actions";
 import { authClient } from "@/lib/auth-client";
-import { BAD_CODE_MESSAGE, BAD_PASSWORD_MESSAGE } from "@/lib/messages";
+import {
+  BAD_CODE_MESSAGE,
+  BAD_PASSWORD_MESSAGE,
+  SESSION_NOT_STUCK_MESSAGE,
+} from "@/lib/messages";
 import { rememberStarterPassword } from "@/components/set-password-form";
 
 const fieldClass = "h-12 px-3 text-lg md:text-lg";
+
+function loginErrorMessage(
+  error: { status?: number; code?: string; message?: string } | null | undefined,
+  fallback: string,
+) {
+  if (!error) {
+    return fallback;
+  }
+  // Credential failures stay kid-friendly; surface other auth/config failures.
+  if (error.status === 401 || error.code === "INVALID_USERNAME_OR_PASSWORD") {
+    return fallback;
+  }
+  if (error.message && error.message.trim()) {
+    return error.message;
+  }
+  return fallback;
+}
 
 export function LoginForm() {
   const router = useRouter();
@@ -30,24 +51,37 @@ export function LoginForm() {
     setError(null);
     setMessage(null);
     setPending(true);
-    const result = await authClient.signIn.username({
-      username: username.trim(),
-      password,
-    });
-    setPending(false);
-    if (result.error) {
-      setError(BAD_PASSWORD_MESSAGE);
-      return;
+    try {
+      const result = await authClient.signIn.username({
+        username: username.trim(),
+        password,
+      });
+      if (result.error) {
+        setError(loginErrorMessage(result.error, BAD_PASSWORD_MESSAGE));
+        return;
+      }
+      const sessionResult = await authClient.getSession();
+      if (!sessionResult.data?.session) {
+        setError(SESSION_NOT_STUCK_MESSAGE);
+        return;
+      }
+      const mustChange = Boolean(sessionResult.data.user.mustChangePassword);
+      if (mustChange) {
+        rememberStarterPassword(password);
+        router.push("/set-password");
+      } else {
+        router.push("/programs");
+      }
+      router.refresh();
+    } catch (cause) {
+      const message =
+        cause instanceof Error && cause.message.trim()
+          ? cause.message
+          : BAD_PASSWORD_MESSAGE;
+      setError(message);
+    } finally {
+      setPending(false);
     }
-    const sessionResult = await authClient.getSession();
-    const mustChange = Boolean(sessionResult.data?.user.mustChangePassword);
-    if (mustChange) {
-      rememberStarterPassword(password);
-      router.push("/set-password");
-    } else {
-      router.push("/programs");
-    }
-    router.refresh();
   }
 
   async function sendLink() {
@@ -81,17 +115,31 @@ export function LoginForm() {
     event.preventDefault();
     setError(null);
     setPending(true);
-    const result = await authClient.signIn.emailOtp({
-      email: email.trim(),
-      otp: code.trim(),
-    });
-    setPending(false);
-    if (result.error) {
-      setError(BAD_CODE_MESSAGE);
-      return;
+    try {
+      const result = await authClient.signIn.emailOtp({
+        email: email.trim(),
+        otp: code.trim(),
+      });
+      if (result.error) {
+        setError(loginErrorMessage(result.error, BAD_CODE_MESSAGE));
+        return;
+      }
+      const sessionResult = await authClient.getSession();
+      if (!sessionResult.data?.session) {
+        setError(SESSION_NOT_STUCK_MESSAGE);
+        return;
+      }
+      router.push("/programs");
+      router.refresh();
+    } catch (cause) {
+      const message =
+        cause instanceof Error && cause.message.trim()
+          ? cause.message
+          : BAD_CODE_MESSAGE;
+      setError(message);
+    } finally {
+      setPending(false);
     }
-    router.push("/programs");
-    router.refresh();
   }
 
   return (
