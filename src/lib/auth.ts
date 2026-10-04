@@ -8,45 +8,50 @@ import { getDb } from "@/db";
 import * as authSchema from "@/db/auth-schema";
 import { deliverToCoach } from "@/lib/mail";
 
-// Canonical production host is www — Vercel 308s apex → www. Using apex here
-// makes magic-link / reset URLs bounce hosts and can drop host-only cookies.
+// Canonical production host is www — Vercel 308s apex → www.
+// Keep BETTER_AUTH_URL as the www fallback for email links / auth.api calls
+// that have no request host. Do not pin a static baseURL to www only: that,
+// combined with Domain=.rollingsparks.org cookies, makes username/password
+// sign-in silently fail on https://rollingsparksorg.vercel.app (school WiFi
+// bypass when the custom domain is filtered).
 const CANONICAL_PROD_URL = "https://www.rollingsparks.org";
 const APEX_PROD_URL = "https://rollingsparks.org";
-const appUrl = process.env.BETTER_AUTH_URL || "http://localhost:3000";
+const VERCEL_PROD_URL = "https://rollingsparksorg.vercel.app";
 
-function isRollingSparksHost(url: string) {
-  try {
-    const host = new URL(url).hostname;
-    return host === "www.rollingsparks.org" || host === "rollingsparks.org";
-  } catch {
-    return false;
-  }
-}
-
-const isProdHost = isRollingSparksHost(appUrl);
+const fallbackUrl =
+  process.env.BETTER_AUTH_URL ||
+  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
 
 export const auth = betterAuth({
   appName: "Rolling Sparks",
-  baseURL: appUrl,
+  baseURL: {
+    allowedHosts: [
+      "www.rollingsparks.org",
+      "rollingsparks.org",
+      "rollingsparksorg.vercel.app",
+      "*.vercel.app",
+      "localhost:*",
+      "127.0.0.1:*",
+    ],
+    protocol: "auto",
+    fallback: fallbackUrl,
+  },
   secret: process.env.BETTER_AUTH_SECRET,
+  // allowedHosts are also added automatically; keep explicit origins for clarity.
   trustedOrigins: [
-    appUrl,
     CANONICAL_PROD_URL,
     APEX_PROD_URL,
+    VERCEL_PROD_URL,
+    "https://*.vercel.app",
   ],
-  advanced: isProdHost
-    ? {
-        crossSubDomainCookies: {
-          enabled: true,
-          domain: ".rollingsparks.org",
-        },
-        defaultCookieAttributes: {
-          secure: true,
-          sameSite: "lax",
-          path: "/",
-        },
-      }
-    : undefined,
+  advanced: {
+    // Host-only cookies (no Domain=.rollingsparks.org). Apex already redirects
+    // to www, and a shared parent domain breaks session cookies on *.vercel.app.
+    defaultCookieAttributes: {
+      sameSite: "lax",
+      path: "/",
+    },
+  },
   database: drizzleAdapter(getDb(), {
     provider: "pg",
     schema: {
