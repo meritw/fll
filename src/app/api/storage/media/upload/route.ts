@@ -76,7 +76,7 @@ export async function POST(request: Request) {
     );
   }
   if (!Number.isFinite(size) || size <= 0 || size > MAX_MEDIA_BYTES) {
-    return NextResponse.json({ error: "That file is too large (32 MB max)." }, { status: 400 });
+    return NextResponse.json({ error: "That file is too large (512 MB max)." }, { status: 400 });
   }
 
   const [existing] = await getDb()

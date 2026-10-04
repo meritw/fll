@@ -8,7 +8,7 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 export const MAX_PROGRAM_BYTES = 32 * 1024 * 1024;
 /** Images/videos use client → Neon presign (same as .llsp3) so Vercel body limits do not apply. */
-export const MAX_MEDIA_BYTES = 32 * 1024 * 1024;
+export const MAX_MEDIA_BYTES = 512 * 1024 * 1024;
 const UPLOAD_CONTENT_TYPE = "application/octet-stream";
 
 export const MEDIA_CONTENT_TYPES = {
