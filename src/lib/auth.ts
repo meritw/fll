@@ -12,11 +12,12 @@ import { deliverToCoach } from "@/lib/mail";
 // Keep BETTER_AUTH_URL as the www fallback for email links / auth.api calls
 // that have no request host. Do not pin a static baseURL to www only: that,
 // combined with Domain=.rollingsparks.org cookies, makes username/password
-// sign-in silently fail on https://rollingsparksorg.vercel.app (school WiFi
+// sign-in silently fail on https://rollingsparks.vercel.app (school WiFi
 // bypass when the custom domain is filtered).
+// Any *.vercel.app host is allowed via wildcards below (previews + prod alias).
 const CANONICAL_PROD_URL = "https://www.rollingsparks.org";
 const APEX_PROD_URL = "https://rollingsparks.org";
-const VERCEL_PROD_URL = "https://rollingsparksorg.vercel.app";
+const VERCEL_PROD_URL = "https://rollingsparks.vercel.app";
 
 const fallbackUrl =
   process.env.BETTER_AUTH_URL ||
@@ -28,7 +29,7 @@ export const auth = betterAuth({
     allowedHosts: [
       "www.rollingsparks.org",
       "rollingsparks.org",
-      "rollingsparksorg.vercel.app",
+      "rollingsparks.vercel.app",
       "*.vercel.app",
       "localhost:*",
       "127.0.0.1:*",
@@ -38,6 +39,7 @@ export const auth = betterAuth({
   },
   secret: process.env.BETTER_AUTH_SECRET,
   // allowedHosts are also added automatically; keep explicit origins for clarity.
+  // https://*.vercel.app covers the production alias and all preview hosts.
   trustedOrigins: [
     CANONICAL_PROD_URL,
     APEX_PROD_URL,
