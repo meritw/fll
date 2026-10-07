@@ -54,8 +54,8 @@ export function SetPasswordForm({ username }: { username: string }) {
       setError("Type the password from your coach first.");
       return;
     }
-    if (password.length < 6) {
-      setError("Pick a password with at least 6 characters.");
+    if (password.length < 3) {
+      setError("Pick a password with at least 3 characters.");
       return;
     }
     if (password !== confirm) {

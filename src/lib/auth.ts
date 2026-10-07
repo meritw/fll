@@ -64,7 +64,7 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
     autoSignIn: false,
-    minPasswordLength: 6,
+    minPasswordLength: 3,
     sendResetPassword: async ({ user, url }) => {
       await deliverToCoach({
         email: user.email,
