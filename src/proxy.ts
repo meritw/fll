@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionCookie } from "better-auth/cookies";
 
-const publicPaths = ["/", "/login", "/reset-password", "/api/auth", "/api/meetings.ics"];
+const publicPaths = [
+  "/",
+  "/login",
+  "/reset-password",
+  "/api/auth",
+  "/api/meetings.ics",
+  // Experimental Option D: self-hosted pybricks-code static SPA (no RS secrets).
+  "/pybricks",
+];
 
 function isPublicPath(pathname: string) {
   if (pathname === "/") {

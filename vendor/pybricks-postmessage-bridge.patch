@@ -1,0 +1,187 @@
+diff --git a/src/explorer/sagas.ts b/src/explorer/sagas.ts
+index 84ced80..d2a8c8c 100644
+--- a/src/explorer/sagas.ts
++++ b/src/explorer/sagas.ts
+@@ -141,16 +141,26 @@ function* handleExplorerArchiveAllFiles(): Generator {
+ 
+         const fileName = `pybricks-backup-${timestamp()}${zipFileExtension}`;
+ 
+-        yield* call(() =>
+-            fileSave(zipData, {
+-                id: 'pybricksCodeFileStorageArchive',
+-                fileName,
+-                extensions: [zipFileExtension],
+-                mimeTypes: [zipFileMimeType],
+-                // TODO: translate description
+-                description: 'Zip Files',
+-            }),
+-        );
++        // Rolling Sparks spike: also hand the zip to an embedding parent via postMessage.
++        // Import is deferred so unit tests that don't load the bridge still work.
++        yield* call(async () => {
++            const { notifyParentOfBackupZip } = await import('../rollingSparksBridge');
++            await notifyParentOfBackupZip(zipData, fileName, zipFileMimeType);
++        });
++
++        // When embedded, skip the native file picker — parent already received the zip.
++        if (window.parent === window) {
++            yield* call(() =>
++                fileSave(zipData, {
++                    id: 'pybricksCodeFileStorageArchive',
++                    fileName,
++                    extensions: [zipFileExtension],
++                    mimeTypes: [zipFileMimeType],
++                    // TODO: translate description
++                    description: 'Zip Files',
++                }),
++            );
++        }
+ 
+         yield* put(explorerDidArchiveAllFiles());
+     } catch (err) {
+diff --git a/src/index.tsx b/src/index.tsx
+index 933bdfa..46c9700 100644
+--- a/src/index.tsx
++++ b/src/index.tsx
+@@ -73,6 +73,11 @@ window.addEventListener('drop', dragEventHandler);
+ 
+ sagaMiddleware.run(rootSaga);
+ 
++// Rolling Sparks spike: allow parent page to request a backup zip via postMessage.
++void import('./rollingSparksBridge').then(({ installRollingSparksBridge }) => {
++    installRollingSparksBridge(store);
++});
++
+ const container = document.getElementById('root');
+ defined(container);
+ const root = createRoot(container);
+diff --git a/src/rollingSparksBridge.ts b/src/rollingSparksBridge.ts
+new file mode 100644
+index 0000000..32b49e0
+--- /dev/null
++++ b/src/rollingSparksBridge.ts
+@@ -0,0 +1,124 @@
++// SPDX-License-Identifier: MIT
++// Rolling Sparks spike: parent ↔ Pybricks postMessage export bridge.
++// Not upstream — applied by scripts/build-pybricks.sh via patch.
++
++import type { Store } from '@reduxjs/toolkit';
++import { explorerArchiveAllFiles } from './explorer/actions';
++
++export const RS_BRIDGE_SOURCE = 'rolling-sparks-pybricks';
++export const RS_BRIDGE_VERSION = 1;
++
++type ExportRequestMessage = {
++    source: typeof RS_BRIDGE_SOURCE;
++    type: 'export-request';
++    requestId?: string;
++};
++
++type ReadyMessage = {
++    source: typeof RS_BRIDGE_SOURCE;
++    type: 'ready';
++    version: typeof RS_BRIDGE_VERSION;
++};
++
++type ExportMessage = {
++    source: typeof RS_BRIDGE_SOURCE;
++    type: 'export';
++    requestId?: string;
++    fileName: string;
++    /** base64-encoded zip bytes (same payload as Pybricks Backup) */
++    zipBase64: string;
++    mimeType: string;
++};
++
++type ExportErrorMessage = {
++    source: typeof RS_BRIDGE_SOURCE;
++    type: 'export-error';
++    requestId?: string;
++    message: string;
++};
++
++declare global {
++    interface Window {
++        __rollingSparksPybricksExport?: (payload: {
++            fileName: string;
++            zipBase64: string;
++            mimeType: string;
++            requestId?: string;
++        }) => void;
++        __rollingSparksPendingExportRequestId?: string;
++    }
++}
++
++function isExportRequest(data: unknown): data is ExportRequestMessage {
++    if (!data || typeof data !== 'object') {
++        return false;
++    }
++    const msg = data as Partial<ExportRequestMessage>;
++    return msg.source === RS_BRIDGE_SOURCE && msg.type === 'export-request';
++}
++
++function postToParent(
++    message: ReadyMessage | ExportMessage | ExportErrorMessage,
++): void {
++    if (window.parent === window) {
++        return;
++    }
++    window.parent.postMessage(message, window.location.origin);
++}
++
++/**
++ * Call from the archive saga after a zip blob is built so the parent can
++ * receive the program without relying on the File System Access download UI.
++ */
++export async function notifyParentOfBackupZip(
++    zipData: Blob,
++    fileName: string,
++    mimeType: string,
++): Promise<void> {
++    const buffer = await zipData.arrayBuffer();
++    const bytes = new Uint8Array(buffer);
++    let binary = '';
++    const chunk = 0x8000;
++    for (let i = 0; i < bytes.length; i += chunk) {
++        binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
++    }
++    const zipBase64 = btoa(binary);
++    const requestId = window.__rollingSparksPendingExportRequestId;
++    window.__rollingSparksPendingExportRequestId = undefined;
++
++    const payload = { fileName, zipBase64, mimeType, requestId };
++    window.__rollingSparksPybricksExport?.(payload);
++    postToParent({
++        source: RS_BRIDGE_SOURCE,
++        type: 'export',
++        ...payload,
++    });
++}
++
++export function installRollingSparksBridge(store: Store): void {
++    postToParent({
++        source: RS_BRIDGE_SOURCE,
++        type: 'ready',
++        version: RS_BRIDGE_VERSION,
++    });
++
++    window.addEventListener('message', (event: MessageEvent) => {
++        if (event.origin !== window.location.origin) {
++            return;
++        }
++        if (!isExportRequest(event.data)) {
++            return;
++        }
++        window.__rollingSparksPendingExportRequestId = event.data.requestId;
++        try {
++            store.dispatch(explorerArchiveAllFiles());
++        } catch (err) {
++            postToParent({
++                source: RS_BRIDGE_SOURCE,
++                type: 'export-error',
++                requestId: event.data.requestId,
++                message: err instanceof Error ? err.message : String(err),
++            });
++        }
++    });
++}

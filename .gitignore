@@ -20,6 +20,10 @@
 # production
 /build
 
+# Pybricks Option D spike — clone + ~137MB CRA build stay local (see scripts/build-pybricks.sh)
+/vendor/pybricks-code/
+/public/pybricks/
+
 # misc
 .DS_Store
 *.pem
