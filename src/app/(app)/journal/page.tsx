@@ -33,7 +33,7 @@ export default async function JournalPage() {
       <section className="flex flex-col gap-4">
         <h2 className="text-2xl font-semibold">Sessions</h2>
         {sessions.length === 0 ? (
-          <p>No sessions yet. Check Meetings for the calendar.</p>
+          <p>No filled sessions yet. Check Meetings for the calendar.</p>
         ) : (
           <ul className="flex flex-col gap-3">
             {sessions.map((session) => (
