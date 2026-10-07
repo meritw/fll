@@ -36,6 +36,13 @@
       "when": 1790600000000,
       "tag": "0004_meeting_media",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790700000000,
+      "tag": "0005_team_project",
+      "breakpoints": true
     }
   ]
 }

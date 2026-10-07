@@ -26,7 +26,7 @@ export function proxy(request: NextRequest) {
   }
 
   if (hasSession && pathname === "/login") {
-    return NextResponse.redirect(new URL("/programs", request.url));
+    return NextResponse.redirect(new URL("/home", request.url));
   }
 
   return NextResponse.next();

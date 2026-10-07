@@ -70,7 +70,7 @@ export function LoginForm() {
         rememberStarterPassword(password);
         router.push("/set-password");
       } else {
-        router.push("/programs");
+        router.push("/home");
       }
       router.refresh();
     } catch (cause) {
@@ -129,7 +129,7 @@ export function LoginForm() {
         setError(SESSION_NOT_STUCK_MESSAGE);
         return;
       }
-      router.push("/programs");
+      router.push("/home");
       router.refresh();
     } catch (cause) {
       const message =

@@ -195,3 +195,79 @@ export async function presignMediaUpload(
 export async function headStorageObject(key: string) {
   return headProgramObject(key);
 }
+
+export const MAX_TEAM_PROJECT_BYTES = 32 * 1024 * 1024;
+
+export function objectKeyForTeamProjectUpload(userId: string) {
+  return `team-project/uploads/${userId}/${crypto.randomUUID()}.zip`;
+}
+
+export function isTeamProjectUploadKey(userId: string, key: string) {
+  if (!userId || userId.includes("/") || userId.includes("..")) {
+    return false;
+  }
+  const prefix = `team-project/uploads/${userId}/`;
+  if (!key.startsWith(prefix)) {
+    return false;
+  }
+  const rest = key.slice(prefix.length);
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.zip$/i.test(
+    rest,
+  );
+}
+
+export function objectKeyForTeamProjectRepo(projectId: string) {
+  return `team-project/${projectId}/repo.zip`;
+}
+
+export function objectKeyForTeamProjectConflictBlob(
+  projectId: string,
+  conflictId: string,
+  side: "base" | "ours" | "theirs" | "resolved",
+) {
+  return `team-project/${projectId}/conflicts/${conflictId}/${side}.bin`;
+}
+
+export async function putStorageObject(key: string, body: Uint8Array | Buffer) {
+  const config = storageConfig();
+  if (!config) {
+    return null;
+  }
+  await getClient(config).send(
+    new PutObjectCommand({
+      Bucket: config.bucket,
+      Key: key,
+      Body: body,
+      ContentType: UPLOAD_CONTENT_TYPE,
+      ContentLength: body.byteLength,
+    }),
+  );
+  return { key, size: body.byteLength };
+}
+
+export async function getStorageObjectBytes(key: string) {
+  const config = storageConfig();
+  if (!config) {
+    return null;
+  }
+  try {
+    const result = await getClient(config).send(
+      new GetObjectCommand({ Bucket: config.bucket, Key: key }),
+    );
+    if (!result.Body) {
+      return null;
+    }
+    const bytes = await result.Body.transformToByteArray();
+    return Buffer.from(bytes);
+  } catch (error) {
+    const name = error instanceof Error ? error.name : "";
+    if (name === "NotFound" || name === "NoSuchKey") {
+      return null;
+    }
+    throw error;
+  }
+}
+
+export async function presignTeamProjectUpload(key: string, contentLength: number) {
+  return presignProgramUpload(key, contentLength);
+}

@@ -278,3 +278,152 @@ export const meetingMediaRelations = relations(meetingMedia, ({ one }) => ({
     references: [user.id],
   }),
 }));
+
+/** Singleton shared Pybricks zip project (git-backed tree in Neon object storage). */
+export const teamProject = pgTable("team_project", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  headSha: text("head_sha"),
+  repoObjectKey: text("repo_object_key"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
+export const teamProjectCommit = pgTable(
+  "team_project_commit",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => teamProject.id, { onDelete: "cascade" }),
+    sha: text("sha").notNull(),
+    parentSha: text("parent_sha"),
+    baseSha: text("base_sha"),
+    message: text("message").notNull(),
+    uploadedById: text("uploaded_by_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "restrict" }),
+    uploadObjectKey: text("upload_object_key"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    unique("team_project_commit_sha").on(table.projectId, table.sha),
+    index("team_project_commit_project_idx").on(table.projectId),
+    index("team_project_commit_created_idx").on(table.createdAt),
+  ],
+);
+
+/** One kid/coach upload attempt (merged, conflicted, or seeded). */
+export const teamProjectUpload = pgTable(
+  "team_project_upload",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => teamProject.id, { onDelete: "cascade" }),
+    uploadedById: text("uploaded_by_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "restrict" }),
+    objectKey: text("object_key").notNull(),
+    fileName: text("file_name").notNull(),
+    message: text("message").notNull().default(""),
+    baseSha: text("base_sha"),
+    // merged | conflict | seeded
+    status: text("status").notNull(),
+    resultCommitSha: text("result_commit_sha"),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("team_project_upload_project_idx").on(table.projectId),
+    index("team_project_upload_status_idx").on(table.status),
+  ],
+);
+
+export const teamProjectConflict = pgTable(
+  "team_project_conflict",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => teamProject.id, { onDelete: "cascade" }),
+    uploadId: text("upload_id")
+      .notNull()
+      .references(() => teamProjectUpload.id, { onDelete: "cascade" }),
+    path: text("path").notNull(),
+    // text | binary
+    kind: text("kind").notNull(),
+    // open | resolved
+    status: text("status").notNull().default("open"),
+    baseContent: text("base_content"),
+    oursContent: text("ours_content"),
+    theirsContent: text("theirs_content"),
+    // For binary sides (or large text) stored in object storage.
+    baseObjectKey: text("base_object_key"),
+    oursObjectKey: text("ours_object_key"),
+    theirsObjectKey: text("theirs_object_key"),
+    // ours | theirs | custom
+    resolution: text("resolution"),
+    resolvedContent: text("resolved_content"),
+    resolvedObjectKey: text("resolved_object_key"),
+    uploadedById: text("uploaded_by_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "restrict" }),
+    resolvedById: text("resolved_by_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("team_project_conflict_project_idx").on(table.projectId),
+    index("team_project_conflict_upload_idx").on(table.uploadId),
+    index("team_project_conflict_status_idx").on(table.status),
+  ],
+);
+
+export const teamProjectRelations = relations(teamProject, ({ many }) => ({
+  commits: many(teamProjectCommit),
+  uploads: many(teamProjectUpload),
+  conflicts: many(teamProjectConflict),
+}));
+
+export const teamProjectCommitRelations = relations(teamProjectCommit, ({ one }) => ({
+  project: one(teamProject, {
+    fields: [teamProjectCommit.projectId],
+    references: [teamProject.id],
+  }),
+  uploadedBy: one(user, {
+    fields: [teamProjectCommit.uploadedById],
+    references: [user.id],
+  }),
+}));
+
+export const teamProjectUploadRelations = relations(teamProjectUpload, ({ one, many }) => ({
+  project: one(teamProject, {
+    fields: [teamProjectUpload.projectId],
+    references: [teamProject.id],
+  }),
+  uploadedBy: one(user, {
+    fields: [teamProjectUpload.uploadedById],
+    references: [user.id],
+  }),
+  conflicts: many(teamProjectConflict),
+}));
+
+export const teamProjectConflictRelations = relations(teamProjectConflict, ({ one }) => ({
+  project: one(teamProject, {
+    fields: [teamProjectConflict.projectId],
+    references: [teamProject.id],
+  }),
+  upload: one(teamProjectUpload, {
+    fields: [teamProjectConflict.uploadId],
+    references: [teamProjectUpload.id],
+  }),
+  uploadedBy: one(user, {
+    fields: [teamProjectConflict.uploadedById],
+    references: [user.id],
+  }),
+  resolvedBy: one(user, {
+    fields: [teamProjectConflict.resolvedById],
+    references: [user.id],
+  }),
+}));

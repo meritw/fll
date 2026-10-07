@@ -30,7 +30,7 @@ export const metadata: Metadata = {
 export default async function HomePage() {
   const session = await getSession();
   if (session) {
-    redirect(needsPasswordChange(session.user) ? "/set-password" : "/programs");
+    redirect(needsPasswordChange(session.user) ? "/set-password" : "/home");
   }
 
   return (
