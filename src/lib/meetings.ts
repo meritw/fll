@@ -477,34 +477,58 @@ export async function listRecentMeetings(limit = 40) {
     .limit(limit);
 }
 
-/** Sessions for the engineering notebook index (newest first). */
+/** True when a meeting has notebook content (not just a calendar shell). */
+function meetingHasNotebookContent(row: {
+  summary: string | null;
+  attendanceRecordedAt: Date | null;
+  notes: { kind: string }[];
+  attendees: { userId: string }[];
+  media: { id: string }[];
+  journalEntries: { id: string }[];
+}) {
+  return (
+    row.notes.length > 0 ||
+    row.attendees.length > 0 ||
+    row.media.length > 0 ||
+    row.journalEntries.length > 0 ||
+    Boolean(row.summary?.trim()) ||
+    row.attendanceRecordedAt != null
+  );
+}
+
+/** Sessions for the engineering notebook index (newest first).
+ * Empty calendar shells (no notes, attendance, media, summary, or related journal) are omitted.
+ */
 export async function listNotebookSessions(limit = 40) {
   const rows = await getDb().query.meeting.findMany({
     orderBy: (table, { desc: orderDesc }) => [orderDesc(table.startsAt)],
-    limit,
     with: {
       notes: { columns: { kind: true } },
       attendees: { columns: { userId: true } },
+      media: { columns: { id: true } },
+      journalEntries: { columns: { id: true } },
     },
   });
 
-  return rows.map((row) => {
-    const progressCount = row.notes.filter((note) => note.kind === "progress").length;
-    const actionCount = row.notes.filter((note) => note.kind === "action").length;
-    const lessonCount = row.notes.filter((note) => note.kind === "lesson").length;
-    return {
-      id: row.id,
-      startsAt: row.startsAt,
-      endsAt: row.endsAt,
-      title: row.title,
-      sessionNumber: row.sessionNumber,
-      attendeeCount: row.attendees.length,
-      progressCount,
-      actionCount,
-      lessonCount,
-      filled: progressCount + actionCount + lessonCount > 0 || row.attendees.length > 0,
-    };
-  });
+  return rows
+    .filter(meetingHasNotebookContent)
+    .slice(0, limit)
+    .map((row) => {
+      const progressCount = row.notes.filter((note) => note.kind === "progress").length;
+      const actionCount = row.notes.filter((note) => note.kind === "action").length;
+      const lessonCount = row.notes.filter((note) => note.kind === "lesson").length;
+      return {
+        id: row.id,
+        startsAt: row.startsAt,
+        endsAt: row.endsAt,
+        title: row.title,
+        sessionNumber: row.sessionNumber,
+        attendeeCount: row.attendees.length,
+        progressCount,
+        actionCount,
+        lessonCount,
+      };
+    });
 }
 
 export { TEAM_TIME_ZONE, EVENING_START_HOUR, EVENING_END_HOUR };
