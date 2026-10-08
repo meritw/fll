@@ -5,7 +5,7 @@ export default function NotFound() {
     <main className="mx-auto flex w-full max-w-lg flex-1 flex-col justify-center gap-4 px-4 py-10">
       <h1 className="text-3xl font-semibold">That page is missing</h1>
       <Link href="/home" className="text-lg underline-offset-4 hover:underline">
-        Back to programs
+        Back to home
       </Link>
     </main>
   );

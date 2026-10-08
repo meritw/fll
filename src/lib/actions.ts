@@ -76,8 +76,7 @@ export async function saveProgramName(programId: string, name: string) {
   if ("error" in result) {
     return result;
   }
-  revalidatePath("/programs");
-  revalidatePath(`/programs/${programId}`);
+  revalidatePath("/home");
   return { message: "Name saved." };
 }
 
@@ -96,8 +95,8 @@ export async function addNewProgram(input: {
   if (!("id" in result)) {
     return { error: "Could not save that program." };
   }
-  revalidatePath("/programs");
-  redirect(`/programs/${result.id}`);
+  revalidatePath("/home");
+  redirect("/home");
 }
 
 export async function uploadProgramVersion(input: {
@@ -123,9 +122,8 @@ export async function uploadProgramVersion(input: {
     }
     throw error;
   }
-  revalidatePath("/programs");
-  revalidatePath(`/programs/${input.programId}`);
-  redirect(`/programs/${input.programId}`);
+  revalidatePath("/home");
+  redirect("/home");
 }
 
 export async function addStudent(_prev: ActionState, formData: FormData): Promise<ActionState> {
