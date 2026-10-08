@@ -183,24 +183,23 @@ export function TeamProjectHome({
   }
 
   async function onGitDownload() {
-    setError(null);
-    setInfo(null);
+    setDownloadNote(null);
     try {
       const response = await fetch("/api/team-project/git-download", {
         method: "GET",
         credentials: "same-origin",
       });
       if (!response.ok) {
-        let message = "Could not download the Git repo.";
+        let text = "Could not download the Git repo.";
         try {
           const body = (await response.json()) as { error?: string };
           if (body.error) {
-            message = body.error;
+            text = body.error;
           }
         } catch {
           // ignore
         }
-        setError(message);
+        setDownloadNote({ kind: "error", text });
         return;
       }
       const blob = await response.blob();
@@ -212,9 +211,12 @@ export function TeamProjectHome({
       anchor.click();
       anchor.remove();
       URL.revokeObjectURL(url);
-      setInfo("Downloaded full Git repo (history included) as RollingSparks-git.zip.");
+      setDownloadNote({
+        kind: "info",
+        text: "Downloaded full Git repo (history included) as RollingSparks-git.zip.",
+      });
     } catch {
-      setError("Could not download the Git repo.");
+      setDownloadNote({ kind: "error", text: "Could not download the Git repo." });
     }
   }
 
