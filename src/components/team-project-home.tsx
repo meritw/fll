@@ -182,6 +182,44 @@ export function TeamProjectHome({
     }
   }
 
+  async function onGitDownload() {
+    setDownloadNote(null);
+    try {
+      const response = await fetch("/api/team-project/git-download", {
+        method: "GET",
+        credentials: "same-origin",
+      });
+      if (!response.ok) {
+        let text = "Could not download the Git repo.";
+        try {
+          const body = (await response.json()) as { error?: string };
+          if (body.error) {
+            text = body.error;
+          }
+        } catch {
+          // ignore
+        }
+        setDownloadNote({ kind: "error", text });
+        return;
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = "RollingSparks-git.zip";
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+      setDownloadNote({
+        kind: "info",
+        text: "Downloaded full Git repo (history included) as RollingSparks-git.zip.",
+      });
+    } catch {
+      setDownloadNote({ kind: "error", text: "Could not download the Git repo." });
+    }
+  }
+
   async function onUpload(event: React.FormEvent) {
     event.preventDefault();
     setUploadNote(null);
@@ -525,6 +563,40 @@ export function TeamProjectHome({
           <NoteAlert note={uploadNote} />
         </li>
       </ol>
+
+      {isCoach ? (
+        <section className="border-t border-border/80 pt-8">
+          <p className="text-sm font-medium tracking-wide text-primary uppercase">
+            Coaches
+          </p>
+          <h2 className="mt-1 text-xl font-semibold">Download full Git repo</h2>
+          <p className="mt-2 max-w-2xl text-muted-foreground">
+            Full team project with Git history (.git + working tree). Kids use Step 1 for the
+            Pybricks files zip only.
+          </p>
+          {!storageReady ? (
+            <p className="mt-3 text-muted-foreground">
+              File saving is not set up yet, so the Git repo cannot be downloaded.
+            </p>
+          ) : !headSha ? (
+            <p className="mt-3 text-muted-foreground">
+              No Git history yet. Wait until someone uploads the first project zip, then this
+              download will include the full repo.
+            </p>
+          ) : (
+            <div className="mt-3">
+              <Button
+                size="xl"
+                type="button"
+                variant="outline"
+                onClick={onGitDownload}
+              >
+                Download full Git repo
+              </Button>
+            </div>
+          )}
+        </section>
+      ) : null}
 
       <section className="border-t border-border/80 pt-8">
         <h2 className="text-xl font-semibold">Recent uploads</h2>

@@ -212,6 +212,30 @@ export async function buildDownloadZip(): Promise<{
   };
 }
 
+/** Full isomorphic-git repo (.git + working tree) for coaches. */
+export async function buildGitRepoZip(): Promise<
+  | { ok: true; bytes: Buffer; headSha: string; fileName: string }
+  | { ok: false; error: "not_seeded" | "missing" | "storage" }
+> {
+  if (!storageConfig()) {
+    return { ok: false, error: "storage" };
+  }
+  const project = await ensureProjectRow();
+  if (!project.headSha || !project.repoObjectKey) {
+    return { ok: false, error: "not_seeded" };
+  }
+  const bytes = await getStorageObjectBytes(project.repoObjectKey);
+  if (!bytes || bytes.byteLength === 0) {
+    return { ok: false, error: "missing" };
+  }
+  return {
+    ok: true,
+    bytes,
+    headSha: project.headSha,
+    fileName: "RollingSparks-git.zip",
+  };
+}
+
 export async function assertTeamProjectUpload(
   objectKey: string,
   fileName: string,
