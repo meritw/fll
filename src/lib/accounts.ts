@@ -60,6 +60,10 @@ export async function createAccount(input: {
         updatedAt: new Date(),
       })
       .where(eq(user.id, result.user.id));
+    if (input.role === "student") {
+      const { ensurePybricksLicenses } = await import("@/lib/pybricks-licenses");
+      await ensurePybricksLicenses();
+    }
     return { ok: true as const };
   } catch (error) {
     return { error: accountErrorMessage(error) };

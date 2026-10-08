@@ -72,8 +72,14 @@ export async function ensureMeetings() {
   await ensureRecurringMeetings();
 }
 
+export async function ensurePybricksLicenseSeats() {
+  const { ensurePybricksLicenses } = await import("@/lib/pybricks-licenses");
+  await ensurePybricksLicenses();
+}
+
 export async function bootstrap() {
   await ensureMissions();
   await ensureFirstCoach();
   await ensureMeetings();
+  await ensurePybricksLicenseSeats();
 }

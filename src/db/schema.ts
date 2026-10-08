@@ -146,6 +146,31 @@ export const journalEntry = pgTable(
   (table) => [index("journal_entry_created_at_idx").on(table.createdAt)],
 );
 
+/**
+ * Team Pybricks block-coding license seats (class-year pack).
+ * One row per code. Students get stable assignments; seat 10 is coach-reserved (Bob).
+ */
+export const pybricksLicense = pgTable(
+  "pybricks_license",
+  {
+    id: text("id").primaryKey(),
+    code: text("code").notNull().unique(),
+    // student | coach_reserved
+    seatKind: text("seat_kind").notNull(),
+    // 1–9 student seats, 10 coach-reserved
+    seatIndex: integer("seat_index").notNull().unique(),
+    assignedUserId: text("assigned_user_id").references(() => user.id, {
+      onDelete: "set null",
+    }),
+    assignedAt: timestamp("assigned_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("pybricks_license_assigned_user_idx").on(table.assignedUserId),
+    unique("pybricks_license_assigned_user_unique").on(table.assignedUserId),
+  ],
+);
+
 /** Photos/videos attached to a meeting session (Neon object storage). */
 export const meetingMedia = pgTable(
   "meeting_media",
@@ -170,7 +195,7 @@ export const meetingMedia = pgTable(
   ],
 );
 
-export const userRelations = relations(user, ({ many }) => ({
+export const userRelations = relations(user, ({ many, one }) => ({
   sessions: many(session),
   accounts: many(account),
   programs: many(program),
@@ -181,6 +206,17 @@ export const userRelations = relations(user, ({ many }) => ({
   meetingNotes: many(meetingNote),
   journalEntries: many(journalEntry),
   meetingMediaUploads: many(meetingMedia),
+  pybricksLicense: one(pybricksLicense, {
+    fields: [user.id],
+    references: [pybricksLicense.assignedUserId],
+  }),
+}));
+
+export const pybricksLicenseRelations = relations(pybricksLicense, ({ one }) => ({
+  assignedUser: one(user, {
+    fields: [pybricksLicense.assignedUserId],
+    references: [user.id],
+  }),
 }));
 
 export const missionRelations = relations(mission, ({ many }) => ({
