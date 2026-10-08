@@ -206,7 +206,7 @@ export async function buildDownloadZip(): Promise<{
   return {
     bytes,
     headSha: project.headSha,
-    fileName: "rolling-sparks-pybricks.zip",
+    fileName: "RollingSparks.zip",
   };
 }
 

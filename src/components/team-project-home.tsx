@@ -86,7 +86,7 @@ export function TeamProjectHome({
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = "rolling-sparks-pybricks.zip";
+      anchor.download = "RollingSparks.zip";
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
@@ -178,10 +178,12 @@ export function TeamProjectHome({
   return (
     <div className="flex flex-col gap-8">
       <div>
-        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">Team robot code</h1>
+        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
+          Rolling Sparks Coding Page
+        </h1>
         <p className="mt-2 max-w-2xl text-lg text-muted-foreground">
           Download the shared Pybricks project, edit it at code.pybricks.com, then upload your
-          backup zip. Non-overlapping changes merge automatically.
+          backup zip.
         </p>
       </div>
 
@@ -224,10 +226,7 @@ export function TeamProjectHome({
         <li className="flex flex-col gap-3 border-b border-border/80 pb-6">
           <p className="text-sm font-medium tracking-wide text-primary uppercase">Step 1</p>
           <h2 className="text-2xl font-semibold">Download latest code</h2>
-          <p className="text-muted-foreground">
-            Gets the team&apos;s current Pybricks project as one .zip
-            {headSha ? ` (version ${headSha.slice(0, 7)})` : " (starter project)"}.
-          </p>
+          <p className="text-muted-foreground">Get the team&apos;s current Pybricks project</p>
           <div>
             <Button size="xl" type="button" onClick={onDownload} disabled={!storageReady}>
               Download latest code
@@ -244,7 +243,7 @@ export function TeamProjectHome({
           <p className="text-sm font-medium tracking-wide text-primary uppercase">Step 2</p>
           <h2 className="text-2xl font-semibold">Open Pybricks</h2>
           <p className="text-muted-foreground">
-            Opens in a new tab. Restore or open the zip you downloaded, then edit and Backup when
+            Opens in a new tab. Use Start Here → Upload RollingSparks.zip, then edit and Backup when
             finished.
           </p>
           <div>
@@ -254,6 +253,12 @@ export function TeamProjectHome({
               </a>
             </Button>
           </div>
+          {/* eslint-disable-next-line @next/next/no-img-element -- static instructional screenshot */}
+          <img
+            src="/pybricks-upload-rolling-sparks.png"
+            alt="In Pybricks Code, open Start Here and choose Upload RollingSparks.zip"
+            className="mt-2 w-full max-w-xl rounded-lg border border-border/80"
+          />
         </li>
 
         <li className="flex flex-col gap-3">
