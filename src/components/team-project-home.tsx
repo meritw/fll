@@ -502,7 +502,7 @@ export function TeamProjectHome({
                       setNoteMissing(false);
                     }
                   }}
-                  className="mt-2 h-12 max-w-xl text-lg"
+                  className="mt-2 h-12 max-w-xl text-lg md:text-lg"
                   placeholder="Example: Fixed the turn in mission 3"
                   aria-required="true"
                   aria-invalid={noteMissing}
