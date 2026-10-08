@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { submitTeamProjectUpload } from "@/lib/actions";
-import { PYBRICKS_CODE_URL } from "@/lib/team-project/constants";
+import { PYBRICKS_CODE_URL, UPLOAD_NOTE_REQUIRED_ERROR } from "@/lib/team-project/constants";
 
 const BASE_SHA_KEY = "rs-team-project-base-sha";
 const DOWNLOAD_FILE_NAME = "RollingSparks.zip";
@@ -142,8 +142,10 @@ export function TeamProjectHome({
   recentUploads,
 }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const noteInputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [message, setMessage] = useState("");
+  const [noteMissing, setNoteMissing] = useState(false);
   const [downloadNote, setDownloadNote] = useState<Note | null>(null);
   const [uploadNote, setUploadNote] = useState<Note | null>(null);
   const [pending, setPending] = useState(false);
@@ -191,6 +193,13 @@ export function TeamProjectHome({
       setUploadNote({ kind: "error", text: NOT_A_ZIP });
       return;
     }
+    const note = message.trim();
+    if (!note) {
+      setNoteMissing(true);
+      setUploadNote({ kind: "error", text: UPLOAD_NOTE_REQUIRED_ERROR });
+      noteInputRef.current?.focus();
+      return;
+    }
 
     setPending(true);
     try {
@@ -223,7 +232,7 @@ export function TeamProjectHome({
       const result = await submitTeamProjectUpload({
         objectKey: presignBody.key,
         fileName: file.name,
-        message,
+        message: note,
         baseSha: readDownloadSha() || headSha,
       });
       if ("error" in result && result.error) {
@@ -481,14 +490,22 @@ export function TeamProjectHome({
               </li>
               <li>
                 <Label htmlFor="team-note" className="text-lg leading-normal font-normal">
-                  Type what you changed. You can skip this.
+                  Write a note about what you changed
                 </Label>
                 <Input
+                  ref={noteInputRef}
                   id="team-note"
                   value={message}
-                  onChange={(event) => setMessage(event.target.value)}
+                  onChange={(event) => {
+                    setMessage(event.target.value);
+                    if (event.target.value.trim()) {
+                      setNoteMissing(false);
+                    }
+                  }}
                   className="mt-2 h-12 max-w-xl text-lg"
                   placeholder="Example: Fixed the turn in mission 3"
+                  aria-required="true"
+                  aria-invalid={noteMissing}
                   disabled={pending}
                 />
               </li>

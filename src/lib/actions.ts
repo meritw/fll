@@ -350,7 +350,7 @@ export type TeamProjectUploadResult =
 export async function submitTeamProjectUpload(input: {
   objectKey: string;
   fileName: string;
-  message?: string;
+  message: string;
   baseSha?: string | null;
 }): Promise<TeamProjectUploadResult> {
   const session = await requireUser();

@@ -33,15 +33,17 @@ import {
   zipProjectFiles,
   type GitFs,
 } from "./fs";
-import { TEAM_PROJECT_ID } from "./constants";
+import { TEAM_PROJECT_ID, UPLOAD_NOTE_REQUIRED_ERROR } from "./constants";
 import { mergeTrees } from "./merge";
 
 export { PYBRICKS_CODE_URL, TEAM_PROJECT_ID } from "./constants";
 
 const STARTER_MAIN_PY = `# Rolling Sparks team project
-# 1. Download this zip from Rolling Sparks
-# 2. In Pybricks Code: open or restore this backup
-# 3. When finished: Backup → upload the zip back here
+# All the steps are on the Rolling Sparks Coding Page:
+# 1. Download RollingSparks.zip from the Coding Page.
+# 2. In Pybricks, click the up arrow (Import a file) and pick RollingSparks.zip.
+# 3. When you are done, click the box with a down arrow (Backup all files).
+#    Upload the pybricks-backup zip on the Coding Page with a note about what you changed.
 
 from pybricks.hubs import PrimeHub
 
@@ -255,9 +257,14 @@ export async function ingestTeamProjectUpload(input: {
   userEmail?: string | null;
   objectKey: string;
   fileName: string;
-  message?: string;
+  message: string;
   baseSha?: string | null;
 }) {
+  const note = (input.message ?? "").trim();
+  if (!note) {
+    return { error: UPLOAD_NOTE_REQUIRED_ERROR };
+  }
+
   const checked = await assertTeamProjectUpload(
     input.objectKey,
     input.fileName,
@@ -290,7 +297,7 @@ export async function ingestTeamProjectUpload(input: {
 
   const db = getDb();
   const uploadId = crypto.randomUUID();
-  const message = (input.message ?? "").trim() || "Team project upload";
+  const message = note || "Team project upload";
   const author = authorFromUser({
     id: input.userId,
     name: input.userName,
