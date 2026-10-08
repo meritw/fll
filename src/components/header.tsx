@@ -14,9 +14,6 @@ export function Header({ name, isCoach }: { name: string; isCoach: boolean }) {
           <Link href="/home" className="font-medium underline-offset-4 hover:underline">
             Home
           </Link>
-          <Link href="/programs" className="font-medium underline-offset-4 hover:underline">
-            Programs
-          </Link>
           {isCoach ? (
             <Link href="/conflicts" className="font-medium underline-offset-4 hover:underline">
               Conflicts

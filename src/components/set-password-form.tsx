@@ -83,7 +83,7 @@ export function SetPasswordForm({ username }: { username: string }) {
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-6">
       <p className="text-xl text-muted-foreground">
-        Hi{username ? ` ${username}` : ""}! Before you explore programs, pick a
+        Hi{username ? ` ${username}` : ""}! Before you continue, pick a
         password only you know.
       </p>
       {showCurrent ? (

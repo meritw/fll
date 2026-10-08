@@ -564,20 +564,13 @@ export function TeamProjectHome({
         )}
       </section>
 
-      <p className="text-sm text-muted-foreground">
-        Need the old Spike .llsp3 library?{" "}
-        <Link href="/programs" className="font-medium underline underline-offset-4">
-          Open programs
-        </Link>
-        {isCoach ? (
-          <>
-            {" · "}
-            <Link href="/conflicts" className="font-medium underline underline-offset-4">
-              Conflict review
-            </Link>
-          </>
-        ) : null}
-      </p>
+      {isCoach ? (
+        <p className="text-sm text-muted-foreground">
+          <Link href="/conflicts" className="font-medium underline underline-offset-4">
+            Conflict review
+          </Link>
+        </p>
+      ) : null}
     </div>
   );
 }
