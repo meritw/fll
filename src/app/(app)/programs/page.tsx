@@ -17,7 +17,16 @@ export default async function ProgramsPage() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between gap-4">
-        <h1 className="text-3xl font-semibold">Programs</h1>
+        <div>
+          <h1 className="text-3xl font-semibold">Programs</h1>
+          <p className="mt-1 text-muted-foreground">
+            Spike .llsp3 library. For the shared Pybricks zip, use{" "}
+            <Link href="/home" className="font-medium underline underline-offset-4">
+              Home
+            </Link>
+            .
+          </p>
+        </div>
         <Button asChild size="xl">
           <Link href="/programs/new">Add a program</Link>
         </Button>

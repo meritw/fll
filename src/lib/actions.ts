@@ -48,7 +48,7 @@ async function sendCoachEmail(email: string, kind: "link" | "code" | "reset") {
       const requestHeaders = await headers();
       if (kind === "link") {
         await auth.api.signInMagicLink({
-          body: { email: coach.email, callbackURL: "/programs" },
+          body: { email: coach.email, callbackURL: "/home" },
           headers: requestHeaders,
         });
       } else if (kind === "code") {
@@ -340,6 +340,88 @@ export async function saveMeetingMedia(input: {
   revalidatePath("/gallery");
   revalidatePath("/journal");
   return { message: "Photo or video added.", id: result.id };
+}
+
+export type TeamProjectUploadResult =
+  | { error: string }
+  | { status: "seeded" | "merged"; sha: string; uploadId: string }
+  | { status: "conflict"; uploadId: string; conflictCount: number };
+
+export async function submitTeamProjectUpload(input: {
+  objectKey: string;
+  fileName: string;
+  message: string;
+  baseSha?: string | null;
+}): Promise<TeamProjectUploadResult> {
+  const session = await requireUser();
+  const { ingestTeamProjectUpload } = await import("@/lib/team-project");
+  const result = await ingestTeamProjectUpload({
+    userId: session.user.id,
+    userName: session.user.name,
+    userEmail: session.user.email,
+    objectKey: input.objectKey,
+    fileName: input.fileName,
+    message: input.message,
+    baseSha: input.baseSha,
+  });
+  if ("error" in result) {
+    return { error: result.error ?? "Upload failed." };
+  }
+  revalidatePath("/home");
+  revalidatePath("/conflicts");
+  return result;
+}
+
+export type TeamProjectResolveResult =
+  | { error: string }
+  | { status: "partial"; remaining: number }
+  | { status: "committed"; sha: string };
+
+export async function resolveTeamProjectConflict(input: {
+  conflictId: string;
+  choice: "ours" | "theirs" | "custom";
+  customText?: string;
+}): Promise<TeamProjectResolveResult> {
+  const session = await requireCoach();
+  const { resolveConflict } = await import("@/lib/team-project");
+  const result = await resolveConflict({
+    conflictId: input.conflictId,
+    coachUserId: session.user.id,
+    coachName: session.user.name,
+    coachEmail: session.user.email,
+    choice: input.choice,
+    customText: input.customText,
+  });
+  if ("error" in result) {
+    return { error: result.error ?? "Could not resolve that conflict." };
+  }
+  revalidatePath("/home");
+  revalidatePath("/conflicts");
+  revalidatePath(`/conflicts/${input.conflictId}`);
+  return result;
+}
+
+export async function submitCoachFixedZip(input: {
+  objectKey: string;
+  fileName: string;
+  message?: string;
+}): Promise<{ error: string } | { status: "merged"; sha: string; uploadId: string }> {
+  const session = await requireCoach();
+  const { coachForceUpload } = await import("@/lib/team-project");
+  const result = await coachForceUpload({
+    userId: session.user.id,
+    userName: session.user.name,
+    userEmail: session.user.email,
+    objectKey: input.objectKey,
+    fileName: input.fileName,
+    message: input.message,
+  });
+  if ("error" in result) {
+    return { error: result.error ?? "Upload failed." };
+  }
+  revalidatePath("/home");
+  revalidatePath("/conflicts");
+  return result;
 }
 
 export type ActionState = {

@@ -29,7 +29,7 @@ export async function requireUser(options?: { allowPasswordChange?: boolean }) {
 export async function requireCoach() {
   const session = await requireUser();
   if (session.user.role !== "coach") {
-    redirect("/programs");
+    redirect("/home");
   }
   return session;
 }

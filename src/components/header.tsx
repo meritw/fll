@@ -6,14 +6,22 @@ export function Header({ name, isCoach }: { name: string; isCoach: boolean }) {
   return (
     <header className="border-b bg-card">
       <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-4">
-        <Link href="/programs" className="text-2xl font-semibold">
+        <Link href="/home" className="text-2xl font-semibold">
           Rolling Sparks
         </Link>
         <nav className="flex flex-wrap items-center justify-end gap-3">
           <span className="hidden sm:inline">{name}</span>
+          <Link href="/home" className="font-medium underline-offset-4 hover:underline">
+            Home
+          </Link>
           <Link href="/programs" className="font-medium underline-offset-4 hover:underline">
             Programs
           </Link>
+          {isCoach ? (
+            <Link href="/conflicts" className="font-medium underline-offset-4 hover:underline">
+              Conflicts
+            </Link>
+          ) : null}
           <Link href="/meetings" className="font-medium underline-offset-4 hover:underline">
             Meetings
           </Link>
