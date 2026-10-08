@@ -265,8 +265,15 @@ export function TeamProjectHome({
           <p className="text-sm font-medium tracking-wide text-primary uppercase">Step 3</p>
           <h2 className="text-2xl font-semibold">Upload project (.zip)</h2>
           <p className="text-muted-foreground">
-            Use the backup zip from Pybricks. Optional note helps coaches see what changed.
+            When you are done in Pybricks, click Backup All Files and save the zip, then upload it
+            here. Optional note helps coaches see what changed.
           </p>
+          {/* eslint-disable-next-line @next/next/no-img-element -- static instructional screenshot */}
+          <img
+            src="/pybricks-backup-all-files.png"
+            alt="When you are done, click Backup All Files and save the zip file"
+            className="w-full max-w-xl rounded-lg border border-border/80"
+          />
           <form className="flex max-w-xl flex-col gap-4" onSubmit={onUpload}>
             <div className="flex flex-col gap-2">
               <Label htmlFor="team-zip" className="text-base">
