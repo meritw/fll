@@ -216,7 +216,7 @@ export async function assertTeamProjectUpload(
   userId: string,
 ) {
   if (!fileName.toLowerCase().endsWith(".zip")) {
-    return { error: "Choose a .zip file from Pybricks Backup." };
+    return { error: "That is not a zip file. Pick the pybricks-backup file you saved from Pybricks." };
   }
   if (!isTeamProjectUploadKey(userId, objectKey)) {
     return { error: "That upload is not valid." };
@@ -276,10 +276,16 @@ export async function ingestTeamProjectUpload(input: {
   try {
     theirs = await unzipProjectFiles(zipBytes);
   } catch {
-    return { error: "That zip could not be opened. Export a Pybricks backup zip." };
+    return {
+      error:
+        "That zip file did not open. In Pybricks, click Backup all files again. Then upload the new file.",
+    };
   }
   if (theirs.size === 0) {
-    return { error: "That zip has no project files in it." };
+    return {
+      error:
+        "That zip file is empty. In Pybricks, click Backup all files again. Then upload the new file.",
+    };
   }
 
   const db = getDb();

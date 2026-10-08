@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -11,6 +11,51 @@ import { submitTeamProjectUpload } from "@/lib/actions";
 import { PYBRICKS_CODE_URL } from "@/lib/team-project/constants";
 
 const BASE_SHA_KEY = "rs-team-project-base-sha";
+const DOWNLOAD_FILE_NAME = "RollingSparks.zip";
+
+const DOWNLOAD_FAILED =
+  "The download did not work. Click the button again. If it still does not work, ask a coach.";
+const UPLOAD_FAILED =
+  "The upload did not work. Click Upload to team code again. If it still does not work, ask a coach.";
+const PICK_BACKUP_FIRST = "First click Choose zip file and pick your pybricks-backup file.";
+const NOT_A_ZIP =
+  "That is not a zip file. Click Choose zip file and pick your pybricks-backup file.";
+
+const SCREENSHOT = { src: "/pybricks-backup-all-files.png", width: 2008, height: 1428 };
+
+// Pixel boxes inside SCREENSHOT; the green arrow does not overlap any of them.
+const PYBRICKS_ICONS = {
+  toolbar: {
+    x: 300,
+    y: 188,
+    width: 170,
+    height: 48,
+    label: "The 3 small Pybricks icons: box with a down arrow, up arrow, plus sign",
+  },
+  explorer: { x: 40, y: 22, width: 120, height: 120, label: "Pybricks page icon" },
+  importFile: {
+    x: 365,
+    y: 188,
+    width: 48,
+    height: 48,
+    label: "Pybricks up arrow icon (Import a file)",
+  },
+  backupAll: {
+    x: 305,
+    y: 188,
+    width: 48,
+    height: 48,
+    label: "Pybricks box with a down arrow icon (Backup all files)",
+  },
+} as const;
+
+const ICON_HEIGHT_PX = 40;
+
+const UPLOAD_STATUS_LABELS: Record<string, string> = {
+  seeded: "first team code",
+  merged: "added to team code",
+  conflict: "waiting for a coach",
+};
 
 export function rememberDownloadSha(sha: string | null | undefined) {
   try {
@@ -28,6 +73,42 @@ function readDownloadSha() {
   } catch {
     return null;
   }
+}
+
+function PybricksIcon({ icon }: { icon: keyof typeof PYBRICKS_ICONS }) {
+  const { x, y, width, height, label } = PYBRICKS_ICONS[icon];
+  const scale = ICON_HEIGHT_PX / height;
+  return (
+    <span
+      role="img"
+      aria-label={label}
+      className="mx-1 inline-block shrink-0 rounded-md border border-border bg-no-repeat align-middle"
+      style={{
+        width: Math.round(width * scale),
+        height: ICON_HEIGHT_PX,
+        backgroundImage: `url(${SCREENSHOT.src})`,
+        backgroundSize: `${SCREENSHOT.width * scale}px ${SCREENSHOT.height * scale}px`,
+        backgroundPosition: `${-x * scale}px ${-y * scale}px`,
+      }}
+    />
+  );
+}
+
+type Note = { kind: "info" | "error"; text: string };
+
+function NoteAlert({ note }: { note: Note | null }) {
+  if (!note) {
+    return null;
+  }
+  return (
+    <Alert variant={note.kind === "error" ? "destructive" : "default"} className="max-w-xl">
+      <AlertDescription
+        className={note.kind === "error" ? "text-base" : "text-base font-medium text-foreground"}
+      >
+        {note.text}
+      </AlertDescription>
+    </Alert>
+  );
 }
 
 type Props = {
@@ -60,53 +141,54 @@ export function TeamProjectHome({
   commits,
   recentUploads,
 }: Props) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [message, setMessage] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [info, setInfo] = useState<string | null>(null);
+  const [downloadNote, setDownloadNote] = useState<Note | null>(null);
+  const [uploadNote, setUploadNote] = useState<Note | null>(null);
   const [pending, setPending] = useState(false);
-  const [knownBase, setKnownBase] = useState<string | null>(() => readDownloadSha());
+
+  const pickedDownloadedZip = file?.name.toLowerCase().startsWith("rollingsparks") ?? false;
 
   async function onDownload() {
-    setError(null);
-    setInfo(null);
+    setDownloadNote(null);
     try {
       const response = await fetch("/api/team-project/download", {
         method: "GET",
         credentials: "same-origin",
       });
       if (!response.ok) {
-        setError("Could not download the project zip. Ask a coach.");
+        setDownloadNote({ kind: "error", text: DOWNLOAD_FAILED });
         return;
       }
-      const sha = response.headers.get("X-Team-Project-Sha");
-      rememberDownloadSha(sha);
-      setKnownBase(sha);
+      rememberDownloadSha(response.headers.get("X-Team-Project-Sha"));
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = url;
-      anchor.download = "RollingSparks.zip";
+      anchor.download = DOWNLOAD_FILE_NAME;
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
       URL.revokeObjectURL(url);
-      setInfo("Downloaded. Next: open Pybricks, restore this backup, then upload when done.");
+      setDownloadNote({
+        kind: "info",
+        text: "Downloaded! RollingSparks.zip is in your Downloads folder. Now do Step 2.",
+      });
     } catch {
-      setError("Could not download the project zip. Ask a coach.");
+      setDownloadNote({ kind: "error", text: DOWNLOAD_FAILED });
     }
   }
 
   async function onUpload(event: React.FormEvent) {
     event.preventDefault();
-    setError(null);
-    setInfo(null);
+    setUploadNote(null);
     if (!file) {
-      setError("Choose a .zip file from Pybricks Backup.");
+      setUploadNote({ kind: "error", text: PICK_BACKUP_FIRST });
       return;
     }
     if (!file.name.toLowerCase().endsWith(".zip")) {
-      setError("Choose a .zip file from Pybricks Backup.");
+      setUploadNote({ kind: "error", text: NOT_A_ZIP });
       return;
     }
 
@@ -124,7 +206,7 @@ export function TeamProjectHome({
         contentType?: string;
       };
       if (!presign.ok || !presignBody.url || !presignBody.key) {
-        setError(presignBody.error || "Could not start the upload.");
+        setUploadNote({ kind: "error", text: presignBody.error || UPLOAD_FAILED });
         return;
       }
 
@@ -134,7 +216,7 @@ export function TeamProjectHome({
         body: file,
       });
       if (!put.ok) {
-        setError("Upload to storage failed. Try again.");
+        setUploadNote({ kind: "error", text: UPLOAD_FAILED });
         return;
       }
 
@@ -145,31 +227,42 @@ export function TeamProjectHome({
         baseSha: readDownloadSha() || headSha,
       });
       if ("error" in result && result.error) {
-        setError(result.error);
+        setUploadNote({ kind: "error", text: result.error });
         return;
       }
       if (!("status" in result) || !result.status) {
-        setError("Upload failed. Try again or ask a coach.");
+        setUploadNote({ kind: "error", text: UPLOAD_FAILED });
         return;
       }
       if (result.status === "conflict") {
         const count = result.conflictCount ?? 0;
-        setInfo(
-          `Saved, but ${count} file${count === 1 ? "" : "s"} need a coach to review. Your work is not lost.`,
-        );
+        setUploadNote({
+          kind: "info",
+          text: `Done! Your work is saved. A coach needs to check ${count} file${
+            count === 1 ? "" : "s"
+          } before your changes join the team code.`,
+        });
       } else if (result.status === "seeded") {
-        setInfo("First team project saved. Nice work!");
+        setUploadNote({
+          kind: "info",
+          text: "Done! You saved the first team code. Next time you code, start again at Step 1.",
+        });
       } else {
-        setInfo("Merged into the team project. Download again before the next edit.");
+        setUploadNote({
+          kind: "info",
+          text: "Done! Your changes are in the team code. Next time you code, start again at Step 1.",
+        });
         if ("sha" in result && result.sha) {
           rememberDownloadSha(result.sha);
-          setKnownBase(result.sha);
         }
       }
       setFile(null);
       setMessage("");
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
     } catch {
-      setError("Upload failed. Try again or ask a coach.");
+      setUploadNote({ kind: "error", text: UPLOAD_FAILED });
     } finally {
       setPending(false);
     }
@@ -181,9 +274,9 @@ export function TeamProjectHome({
         <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">
           Rolling Sparks Coding Page
         </h1>
-        <p className="mt-2 max-w-2xl text-lg text-muted-foreground">
-          Download the shared Pybricks project, edit it at code.pybricks.com, then upload your
-          backup zip.
+        <p className="mt-3 max-w-2xl text-xl">
+          Do these 3 steps in order every time you code. Keep this tab open until you finish Step
+          3.
         </p>
       </div>
 
@@ -196,115 +289,223 @@ export function TeamProjectHome({
       {openConflictCount > 0 ? (
         <Alert>
           <AlertDescription>
-            {openConflictCount} conflict{openConflictCount === 1 ? "" : "s"} waiting for a coach.
             {isCoach ? (
               <>
-                {" "}
+                {openConflictCount} conflict{openConflictCount === 1 ? "" : "s"} waiting for a
+                coach.{" "}
                 <Link href="/conflicts" className="font-medium underline underline-offset-4">
                   Review conflicts
                 </Link>
               </>
             ) : (
-              " A coach will pick the right version."
+              `A coach is checking ${openConflictCount} file${
+                openConflictCount === 1 ? "" : "s"
+              } from an earlier upload. You can still do the steps below.`
             )}
           </AlertDescription>
         </Alert>
       ) : null}
 
-      {error ? (
-        <Alert variant="destructive">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
-      {info ? (
-        <Alert>
-          <AlertDescription>{info}</AlertDescription>
-        </Alert>
-      ) : null}
-
       <ol className="flex flex-col gap-6">
-        <li className="flex flex-col gap-3 border-b border-border/80 pb-6">
+        <li className="flex flex-col gap-4 border-b border-border/80 pb-8">
           <p className="text-sm font-medium tracking-wide text-primary uppercase">Step 1</p>
-          <h2 className="text-2xl font-semibold">Download latest code</h2>
-          <p className="text-muted-foreground">Get the team&apos;s current Pybricks project</p>
-          <div>
-            <Button size="xl" type="button" onClick={onDownload} disabled={!storageReady}>
-              Download latest code
-            </Button>
-          </div>
-          {knownBase ? (
-            <p className="text-sm text-muted-foreground">
-              This browser will merge against download {knownBase.slice(0, 7)}.
-            </p>
-          ) : null}
+          <h2 className="text-2xl font-semibold">Download the team code</h2>
+          <p className="text-lg text-muted-foreground">
+            Get the team&apos;s current Pybricks project
+          </p>
+          <ol className="flex list-decimal flex-col gap-4 pl-7 text-lg marker:font-semibold">
+            <li>
+              Click this button:
+              <div className="mt-2">
+                <Button size="xl" type="button" onClick={onDownload} disabled={!storageReady}>
+                  Download RollingSparks.zip
+                </Button>
+              </div>
+            </li>
+            <li>
+              Your computer saves <strong>RollingSparks.zip</strong> in your{" "}
+              <strong>Downloads</strong> folder. If a Save window pops up, click{" "}
+              <strong>Save</strong>.
+            </li>
+          </ol>
+          <NoteAlert note={downloadNote} />
         </li>
 
-        <li className="flex flex-col gap-3 border-b border-border/80 pb-6">
+        <li className="flex flex-col gap-4 border-b border-border/80 pb-8">
           <p className="text-sm font-medium tracking-wide text-primary uppercase">Step 2</p>
-          <h2 className="text-2xl font-semibold">Open Pybricks</h2>
-          <p className="text-muted-foreground">
-            Opens in a new tab. Use Start Here → Upload RollingSparks.zip, then edit and Backup when
-            finished.
+          <h2 className="text-2xl font-semibold">Open Pybricks and load the team code</h2>
+          <p className="text-lg text-muted-foreground">
+            Start here: put RollingSparks.zip into Pybricks.
           </p>
-          <div>
-            <Button asChild size="xl">
-              <a href={PYBRICKS_CODE_URL} target="_blank" rel="noopener noreferrer">
-                Open Pybricks
-              </a>
-            </Button>
-          </div>
-          {/* eslint-disable-next-line @next/next/no-img-element -- static instructional screenshot */}
-          <img
-            src="/pybricks-upload-rolling-sparks.png"
-            alt="In Pybricks Code, open Start Here and choose Upload RollingSparks.zip"
-            className="mt-2 w-full max-w-xl rounded-lg border border-border/80"
-          />
+          <ol className="flex list-decimal flex-col gap-4 pl-7 text-lg marker:font-semibold">
+            <li>
+              Click this button:
+              <div className="mt-2">
+                <Button asChild size="xl">
+                  <a href={PYBRICKS_CODE_URL} target="_blank" rel="noopener noreferrer">
+                    Open Pybricks
+                  </a>
+                </Button>
+              </div>
+              <p className="mt-2">
+                Pybricks opens in a new tab. To read the next step, click the{" "}
+                <strong>Coding Page</strong> tab at the top of your browser.
+              </p>
+            </li>
+            <li>
+              Do you see a box that says <strong>Welcome to Pybricks Code</strong>? Click the{" "}
+              <strong>X</strong> in its top right corner to close it.
+            </li>
+            <li>
+              Find these 3 small icons on the left side of Pybricks:
+              <PybricksIcon icon="toolbar" />
+              <p className="mt-2">
+                Don&apos;t see them? Click this page icon at the top left:
+                <PybricksIcon icon="explorer" />
+              </p>
+            </li>
+            <li>
+              Click this <strong>up arrow</strong>:
+              <PybricksIcon icon="importFile" />
+              <p className="mt-2">
+                When you point at it, it says <strong>Import a file</strong>.
+              </p>
+              {/* eslint-disable-next-line @next/next/no-img-element -- static instructional screenshot */}
+              <img
+                src="/pybricks-upload-rolling-sparks.png"
+                alt="Pybricks screen. A red arrow points to the up arrow icon above the file list. Text: Start Here, Upload RollingSparks.zip."
+                className="mt-3 w-full max-w-xl rounded-lg border border-border/80"
+              />
+            </li>
+            <li>
+              A window opens. Click <strong>Downloads</strong>. Click{" "}
+              <strong>RollingSparks.zip</strong>. Click <strong>Open</strong>.
+              <p className="mt-2">
+                See more than one RollingSparks file? Pick the one with the biggest number, like{" "}
+                <strong>RollingSparks (2).zip</strong>.
+              </p>
+            </li>
+            <li>
+              Do you see a box that says <strong>Replace existing file?</strong> First click the
+              check box next to <strong>Remember this answer</strong>. Then click the red button{" "}
+              <strong>Replace the existing file with the imported file</strong>.
+            </li>
+            <li>
+              Now the team files are in the list on the left. Click a file name to open it. Make
+              your changes.
+            </li>
+          </ol>
         </li>
 
-        <li className="flex flex-col gap-3">
+        <li className="flex flex-col gap-4">
           <p className="text-sm font-medium tracking-wide text-primary uppercase">Step 3</p>
-          <h2 className="text-2xl font-semibold">Upload project (.zip)</h2>
-          <p className="text-muted-foreground">
-            When you are done in Pybricks, click Backup All Files and save the zip, then upload it
-            here. Optional note helps coaches see what changed.
+          <h2 className="text-2xl font-semibold">Back up your work and upload it here</h2>
+          <p className="text-lg text-muted-foreground">
+            When you are done, save your work from Pybricks and send it to the team.
           </p>
-          {/* eslint-disable-next-line @next/next/no-img-element -- static instructional screenshot */}
-          <img
-            src="/pybricks-backup-all-files.png"
-            alt="When you are done, click Backup All Files and save the zip file"
-            className="w-full max-w-xl rounded-lg border border-border/80"
-          />
-          <form className="flex max-w-xl flex-col gap-4" onSubmit={onUpload}>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="team-zip" className="text-base">
-                Pybricks backup zip
-              </Label>
-              <Input
-                id="team-zip"
-                type="file"
-                accept=".zip,application/zip"
-                className="h-12 text-lg"
-                disabled={!storageReady || pending}
-                onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-              />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="team-note" className="text-base">
-                What changed? (optional)
-              </Label>
-              <Input
-                id="team-note"
-                value={message}
-                onChange={(event) => setMessage(event.target.value)}
-                className="h-12 text-lg"
-                placeholder="e.g. Fixed turn for mission 3"
-                disabled={pending}
-              />
-            </div>
-            <Button size="xl" type="submit" disabled={!storageReady || pending}>
-              {pending ? "Uploading…" : "Upload project (.zip)"}
-            </Button>
+          <form onSubmit={onUpload}>
+            <ol className="flex list-decimal flex-col gap-4 pl-7 text-lg marker:font-semibold">
+              <li>
+                In Pybricks, find the 3 small icons on the left side again:
+                <PybricksIcon icon="toolbar" />
+              </li>
+              <li>
+                Click this <strong>box with a down arrow</strong>:
+                <PybricksIcon icon="backupAll" />
+                <p className="mt-2">
+                  When you point at it, it says <strong>Backup all files</strong>.
+                </p>
+                {/* eslint-disable-next-line @next/next/no-img-element -- static instructional screenshot */}
+                <img
+                  src="/pybricks-backup-all-files.png"
+                  alt="Pybricks screen. A green arrow points to the box with a down arrow icon above the file list. Text: When you are done, click Backup All Files and save the zip file."
+                  className="mt-3 w-full max-w-xl rounded-lg border border-border/80"
+                />
+              </li>
+              <li>
+                A Save window opens. Click <strong>Downloads</strong>. Click{" "}
+                <strong>Save</strong>. Your file&apos;s name starts with{" "}
+                <strong>pybricks-backup</strong>.
+                <p className="mt-2">No Save window? The file goes into Downloads by itself.</p>
+              </li>
+              <li>
+                Click the <strong>Coding Page</strong> tab at the top of your browser to come back
+                to this page.
+              </li>
+              <li>
+                Click this button:
+                <div className="mt-2">
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".zip,application/zip"
+                    className="sr-only"
+                    tabIndex={-1}
+                    aria-hidden="true"
+                    disabled={!storageReady || pending}
+                    onChange={(event) => {
+                      setUploadNote(null);
+                      setFile(event.target.files?.[0] ?? null);
+                    }}
+                  />
+                  <Button
+                    size="xl"
+                    type="button"
+                    variant="outline"
+                    disabled={!storageReady || pending}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    Choose zip file
+                  </Button>
+                </div>
+                <p className="mt-2">
+                  A window opens. Click <strong>Downloads</strong>. Click your{" "}
+                  <strong>pybricks-backup</strong> file. Click <strong>Open</strong>. More than
+                  one? Pick the one with the newest date in its name.
+                </p>
+                <p className="mt-2" aria-live="polite">
+                  {file ? (
+                    <>
+                      You picked: <strong className="break-all">{file.name}</strong>
+                    </>
+                  ) : (
+                    <span className="text-muted-foreground">No file picked yet.</span>
+                  )}
+                </p>
+                {pickedDownloadedZip ? (
+                  <p className="mt-2 font-medium text-destructive">
+                    That is the file from Step 1. Click Choose zip file again and pick your
+                    pybricks-backup file.
+                  </p>
+                ) : null}
+              </li>
+              <li>
+                <Label htmlFor="team-note" className="text-lg leading-normal font-normal">
+                  Type what you changed. You can skip this.
+                </Label>
+                <Input
+                  id="team-note"
+                  value={message}
+                  onChange={(event) => setMessage(event.target.value)}
+                  className="mt-2 h-12 max-w-xl text-lg"
+                  placeholder="Example: Fixed the turn in mission 3"
+                  disabled={pending}
+                />
+              </li>
+              <li>
+                Click this button:
+                <div className="mt-2">
+                  <Button size="xl" type="submit" disabled={!storageReady || pending}>
+                    {pending ? "Uploading… please wait" : "Upload to team code"}
+                  </Button>
+                </div>
+                <p className="mt-2">
+                  Wait until you see a message that starts with <strong>Done!</strong>
+                </p>
+              </li>
+            </ol>
           </form>
+          <NoteAlert note={uploadNote} />
         </li>
       </ol>
 
@@ -318,7 +519,7 @@ export function TeamProjectHome({
               <li key={item.id}>
                 <span className="font-medium">{item.uploadedByName}</span>
                 {" · "}
-                {item.status}
+                {UPLOAD_STATUS_LABELS[item.status] ?? item.status}
                 {" · "}
                 {item.message || item.fileName}
               </li>
@@ -330,7 +531,7 @@ export function TeamProjectHome({
       <section>
         <h2 className="text-xl font-semibold">Version history</h2>
         {commits.length === 0 ? (
-          <p className="mt-2 text-muted-foreground">No commits yet — upload the first zip.</p>
+          <p className="mt-2 text-muted-foreground">Nothing yet. The first upload will show here.</p>
         ) : (
           <ul className="mt-3 flex flex-col gap-2 text-base">
             {commits.map((item) => (

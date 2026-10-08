@@ -5,7 +5,7 @@ import { requireUser } from "@/lib/session";
 import { getTeamProjectSummary } from "@/lib/team-project";
 
 export const metadata: Metadata = {
-  title: "Home",
+  title: "Coding Page",
 };
 
 export default async function HomeWorkspacePage() {

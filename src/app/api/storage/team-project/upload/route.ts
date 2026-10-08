@@ -53,7 +53,7 @@ export async function POST(request: Request) {
 
   if (!fileName.toLowerCase().endsWith(".zip")) {
     return NextResponse.json(
-      { error: "Choose a .zip file from Pybricks Backup." },
+      { error: "That is not a zip file. Pick the pybricks-backup file you saved from Pybricks." },
       { status: 400 },
     );
   }
