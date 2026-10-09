@@ -1,5 +1,6 @@
-import { Play } from "lucide-react";
 import { cn } from "cn";
+
+import { LazyVideo } from "@/components/lazy-video";
 
 export function isImage(contentType: string) {
   return contentType.startsWith("image/");
@@ -9,7 +10,7 @@ export function isVideo(contentType: string) {
   return contentType.startsWith("video/");
 }
 
-/** A photo or video from the auth-gated /media route. Videos play in place. */
+/** A photo or video from the auth-gated /media route. Videos load only after tap. */
 export function MediaThumb({
   id,
   contentType,
@@ -31,6 +32,7 @@ export function MediaThumb({
           src={`/media/${id}`}
           alt={caption?.trim() || "Team photo"}
           loading="lazy"
+          decoding="async"
           className="size-full object-cover"
         />
       </div>
@@ -39,17 +41,10 @@ export function MediaThumb({
   if (isVideo(contentType)) {
     return (
       <div className={cn(box, "relative bg-black")}>
-        <video
+        <LazyVideo
           src={`/media/${id}`}
-          controls
-          playsInline
-          preload="metadata"
-          aria-label={caption?.trim() || "Team video"}
-          className="size-full object-contain"
-        />
-        <Play
-          className="pointer-events-none absolute top-2 left-2 size-5 fill-white text-white drop-shadow"
-          aria-hidden
+          label={caption?.trim() || "Team video"}
+          className="size-full"
         />
       </div>
     );

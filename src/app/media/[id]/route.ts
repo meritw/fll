@@ -65,7 +65,9 @@ function mediaHeaders(media: {
   return {
     "Content-Type": media.contentType,
     "Content-Disposition": `inline; filename="${media.fileName.replace(/"/g, "")}"`,
-    "Cache-Control": "private, max-age=3600",
+    // Auth-gated; UUID URLs are immutable once uploaded. Longer private cache
+    // cuts repeat media hits when scrolling gallery/journal on phones.
+    "Cache-Control": "private, max-age=86400, stale-while-revalidate=604800",
     "Accept-Ranges": "bytes",
   };
 }

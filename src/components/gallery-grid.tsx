@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { LazyVideo } from "@/components/lazy-video";
+
 export type GalleryItem = {
   id: string;
   meetingId: string;
@@ -31,7 +33,7 @@ export function GalleryGrid({ items }: { items: GalleryItem[] }) {
   return (
     <ul className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
       {items.map((item) => (
-        <li key={item.id} className="flex flex-col gap-2">
+        <li key={item.id} className="flex flex-col gap-2 [content-visibility:auto] [contain-intrinsic-size:auto_320px]">
           <div className="overflow-hidden rounded-xl bg-muted ring-1 ring-foreground/10">
             {isImage(item.contentType) ? (
               // Auth-gated app route; not a public CDN URL.
@@ -39,16 +41,18 @@ export function GalleryGrid({ items }: { items: GalleryItem[] }) {
               <img
                 src={`/media/${item.id}`}
                 alt={item.caption?.trim() || item.sessionLabel}
+                loading="lazy"
+                decoding="async"
                 className="aspect-[4/3] w-full object-cover"
               />
             ) : isVideo(item.contentType) ? (
-              <video
-                src={`/media/${item.id}`}
-                controls
-                playsInline
-                preload="metadata"
-                className="aspect-[4/3] w-full bg-black object-contain"
-              />
+              <div className="aspect-[4/3] w-full">
+                <LazyVideo
+                  src={`/media/${item.id}`}
+                  label={item.caption?.trim() || item.sessionLabel}
+                  className="aspect-[4/3] w-full"
+                />
+              </div>
             ) : (
               <a
                 href={`/media/${item.id}`}
