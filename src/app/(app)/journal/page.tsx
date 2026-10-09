@@ -122,6 +122,8 @@ export default async function JournalPage({ searchParams }: PageProps) {
   ].sort((left, right) => right.at.getTime() - left.at.getTime());
   const items = all.filter((item) => keep(item, show));
   const newestSessionId = records[0]?.id;
+  // Records are newest first; the oldest one is where the season strip starts.
+  const firstMeeting = records.at(-1);
 
   const months: { id: string; label: string; items: Item[] }[] = [];
   for (const item of items) {
@@ -212,7 +214,13 @@ export default async function JournalPage({ searchParams }: PageProps) {
             down to see how far we&apos;ve come.
           </p>
         </div>
-        <SeasonCard points={points} today={todayDay} stats={stats} coach={coach} />
+        <SeasonCard
+          points={points}
+          today={todayDay}
+          firstMeetingDay={firstMeeting ? teamDateKey(firstMeeting.startsAt) : null}
+          stats={stats}
+          coach={coach}
+        />
       </section>
 
       <section aria-labelledby="add-heading" className="flex flex-col gap-3">
