@@ -23,10 +23,10 @@ export function UserMenu({ name, hasPassword }: { name: string; hasPassword: boo
   return (
     <DropdownMenu.Root>
       <DropdownMenu.Trigger
-        className="inline-flex min-h-11 items-center gap-1.5 rounded-lg px-3 font-medium hover:bg-muted data-[state=open]:bg-muted"
+        className="inline-flex min-h-11 items-center gap-1.5 rounded-lg px-2 font-medium hover:bg-white/10 sm:px-3 data-[state=open]:bg-white/10"
         aria-label={`Account menu for ${name}`}
       >
-        <span className="max-w-[10rem] truncate">{name}</span>
+        <span className="max-w-[6rem] truncate sm:max-w-[10rem]">{name}</span>
         <ChevronDown className="size-4 shrink-0" aria-hidden />
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>

@@ -338,18 +338,18 @@ export function MilestoneCard({
     ? entry.body.trim()
     : entry.body.trim().split("\n").slice(1).join("\n").trim();
   return (
-    <article className="flex items-start gap-4 rounded-3xl bg-brand-dark p-5 text-white">
-      <Star className="size-9 shrink-0 text-[#FFD9B8]" strokeWidth={1.8} aria-hidden />
+    <article className="flex items-start gap-4 rounded-3xl bg-milestone p-5 text-white">
+      <Star className="size-9 shrink-0 text-milestone-accent" strokeWidth={1.8} aria-hidden />
       <div className="flex min-w-0 flex-col gap-1">
-        <span className="font-mono text-sm tracking-[0.08em] text-[#FFD9B8]">
+        <span className="font-mono text-sm tracking-[0.08em] text-milestone-accent">
           MILESTONE
           {entry.relatedMeeting?.sessionNumber != null
             ? ` · SESSION ${entry.relatedMeeting.sessionNumber}`
             : ""}
         </span>
         <h3 className="text-xl leading-snug font-bold sm:text-2xl">{headline}</h3>
-        {rest ? <p className="whitespace-pre-wrap text-[#FBEDE3]">{rest}</p> : null}
-        <span className="text-sm text-[#FBEDE3]">{entry.authorName}</span>
+        {rest ? <p className="whitespace-pre-wrap text-milestone-soft">{rest}</p> : null}
+        <span className="text-sm text-milestone-soft">{entry.authorName}</span>
         {entry.relatedMeeting ? (
           <Link
             href={`/journal/${entry.relatedMeeting.id}`}

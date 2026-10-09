@@ -16,12 +16,12 @@ export const MISSION_STATUS_HINTS: Record<MissionStatus, string> = {
   every: "Works on every run",
 };
 
-/** Tailwind classes for a filled status pill or selected button. One orange ramp, lightness-separated. */
+/** Tailwind classes for a filled status pill or selected button. One blue ramp, lightness-separated. */
 export const MISSION_STATUS_CLASSES: Record<MissionStatus, string> = {
-  none: "bg-[#F1EEE7] text-[#3F3B35]",
-  trying: "bg-[#F3CDAE] text-[#5A2A0E]",
-  some: "bg-[#DB8A52] text-[#2A1406]",
-  every: "bg-[#A84A1C] text-white",
+  none: "bg-status-none text-status-none-ink",
+  trying: "bg-status-trying text-status-trying-ink",
+  some: "bg-status-some text-status-some-ink",
+  every: "bg-status-every text-status-every-ink",
 };
 
 export function isMissionStatus(value: string): value is MissionStatus {

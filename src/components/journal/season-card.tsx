@@ -72,7 +72,7 @@ export function SeasonCard({
         <div className="relative min-w-[560px] pt-1.5">
           <div
             aria-hidden
-            className="absolute top-4 left-2.5 h-1 rounded bg-[#ECE8DF]"
+            className="absolute top-4 left-2.5 h-1 rounded bg-status-none"
             style={{ width: `calc(100% * ${trackEnd})` }}
           />
           <div
