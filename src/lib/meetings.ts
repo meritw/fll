@@ -318,11 +318,15 @@ export async function saveAttendance(input: {
     return { error: "That meeting is missing." };
   }
 
+  // Attendance roster is students only — never parents or coaches.
   const unique = [...new Set(input.attendeeIds.filter(Boolean))];
   let allowed: string[] = [];
   if (unique.length > 0) {
-    const rows = await getDb().select({ id: user.id }).from(user).where(inArray(user.id, unique));
-    allowed = rows.map((row) => row.id);
+    const rows = await getDb()
+      .select({ id: user.id, role: user.role })
+      .from(user)
+      .where(inArray(user.id, unique));
+    allowed = rows.filter((row) => row.role === "student").map((row) => row.id);
   }
 
   const recordedAt = new Date();

@@ -87,6 +87,12 @@ export const auth = betterAuth({
         defaultValue: false,
         input: false,
       },
+      mustSetDisplayName: {
+        type: "boolean",
+        required: true,
+        defaultValue: false,
+        input: false,
+      },
     },
   },
   disabledPaths: ["/is-username-available"],

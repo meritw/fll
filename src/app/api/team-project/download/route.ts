@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { auth } from "@/lib/auth";
+import { isParent } from "@/lib/roles";
 import { buildDownloadZip } from "@/lib/team-project";
 
 export const runtime = "nodejs";
@@ -18,6 +19,15 @@ export async function GET(request: Request) {
   }
   if (session.user.mustChangePassword) {
     return NextResponse.redirect(new URL("/set-password", request.url));
+  }
+  if (session.user.mustSetDisplayName) {
+    return NextResponse.redirect(new URL("/set-name", request.url));
+  }
+  if (isParent(session.user.role)) {
+    return NextResponse.json(
+      { error: "Parents cannot download team project code." },
+      { status: 403 },
+    );
   }
 
   try {

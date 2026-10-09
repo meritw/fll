@@ -25,9 +25,8 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  if (hasSession && pathname === "/login") {
-    return NextResponse.redirect(new URL("/home", request.url));
-  }
+  // Logged-in visitors hitting /login are handled by the login page
+  // (postAuthPath → /set-password, /set-name, /meetings, or /home).
 
   return NextResponse.next();
 }

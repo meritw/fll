@@ -5,8 +5,14 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { auth } from "@/lib/auth";
-import { clearMustChangePassword, createAccount, resetStudentPassword } from "@/lib/accounts";
-import { findDeliverableCoach } from "@/lib/coaches";
+import {
+  clearMustChangePassword,
+  createAccount,
+  createParentAccount,
+  resetStudentPassword,
+  setDisplayName,
+} from "@/lib/accounts";
+import { findDeliverableEmailUser } from "@/lib/coaches";
 import { createJournalEntry } from "@/lib/journal";
 import { attachMeetingMedia } from "@/lib/media";
 import { VAGUE_EMAIL_MESSAGE } from "@/lib/messages";
@@ -22,43 +28,49 @@ import {
   createProgram,
   renameProgram,
 } from "@/lib/programs";
+import { isParent } from "@/lib/roles";
 import { requireCoach, requireUser } from "@/lib/session";
 
 export async function requestMagicLink(email: string) {
-  return sendCoachEmail(email, "link");
+  return sendAdultEmail(email, "link");
 }
 
 export async function requestEmailCode(email: string) {
-  return sendCoachEmail(email, "code");
+  return sendAdultEmail(email, "code");
 }
 
 export async function requestPasswordReset(email: string) {
-  return sendCoachEmail(email, "reset");
+  return sendAdultEmail(email, "reset");
 }
 
-async function sendCoachEmail(email: string, kind: "link" | "code" | "reset") {
+async function sendAdultEmail(email: string, kind: "link" | "code" | "reset") {
   const trimmed = email.trim();
   if (!trimmed) {
     return { message: "Add an email." };
   }
 
-  const coach = await findDeliverableCoach(trimmed);
-  if (coach) {
+  const adult = await findDeliverableEmailUser(trimmed);
+  if (adult) {
     try {
       const requestHeaders = await headers();
+      const callbackURL = adult.mustSetDisplayName
+        ? "/set-name"
+        : isParent(adult.role)
+          ? "/meetings"
+          : "/home";
       if (kind === "link") {
         await auth.api.signInMagicLink({
-          body: { email: coach.email, callbackURL: "/home" },
+          body: { email: adult.email, callbackURL },
           headers: requestHeaders,
         });
       } else if (kind === "code") {
         await auth.api.sendVerificationOTP({
-          body: { email: coach.email, type: "sign-in" },
+          body: { email: adult.email, type: "sign-in" },
           headers: requestHeaders,
         });
       } else {
         await auth.api.requestPasswordReset({
-          body: { email: coach.email, redirectTo: "/reset-password" },
+          body: { email: adult.email, redirectTo: "/reset-password" },
           headers: requestHeaders,
         });
       }
@@ -157,6 +169,18 @@ export async function addCoach(_prev: ActionState, formData: FormData): Promise<
   return { message: "Coach added." };
 }
 
+export async function addParent(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  await requireCoach();
+  const result = await createParentAccount(String(formData.get("email") ?? ""));
+  if ("error" in result) {
+    return result;
+  }
+  revalidatePath("/admin");
+  return {
+    message: "Parent invited. They sign in with email link or code, then choose their name.",
+  };
+}
+
 export async function setStudentPassword(
   _prev: ActionState,
   formData: FormData,
@@ -204,6 +228,20 @@ export async function completeForcedPasswordChange(input: {
 
   await clearMustChangePassword(session.user.id);
   return { message: "Password saved." };
+}
+
+export async function completeSetDisplayName(input: {
+  displayName: string;
+}): Promise<ActionState> {
+  const session = await requireUser({ allowSetDisplayName: true });
+  if (!session.user.mustSetDisplayName) {
+    return { message: "Name already saved." };
+  }
+  const result = await setDisplayName(session.user.id, input.displayName);
+  if ("error" in result) {
+    return result;
+  }
+  return { message: "Name saved." };
 }
 
 export async function addOneOffMeeting(
@@ -352,6 +390,9 @@ export async function submitTeamProjectUpload(input: {
   baseSha?: string | null;
 }): Promise<TeamProjectUploadResult> {
   const session = await requireUser();
+  if (isParent(session.user.role)) {
+    return { error: "Parents cannot upload team project code." };
+  }
   const { ingestTeamProjectUpload } = await import("@/lib/team-project");
   const result = await ingestTeamProjectUpload({
     userId: session.user.id,

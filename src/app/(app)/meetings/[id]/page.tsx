@@ -9,7 +9,7 @@ import {
 } from "@/components/meeting-forms";
 import { MeetingMediaSection } from "@/components/meeting-media";
 import { Separator } from "@/components/ui/separator";
-import { listPeople } from "@/lib/accounts";
+import { listStudents } from "@/lib/accounts";
 import { listMeetingMedia } from "@/lib/media";
 import { getMeeting } from "@/lib/meetings";
 import { requireUser } from "@/lib/session";
@@ -38,16 +38,20 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 export default async function MeetingDetailPage({ params }: PageProps) {
   await requireUser();
   const { id } = await params;
-  const [meeting, people, media] = await Promise.all([
+  const [meeting, students, media] = await Promise.all([
     getMeeting(id),
-    listPeople(),
+    listStudents(),
     listMeetingMedia(id),
   ]);
   if (!meeting) {
     notFound();
   }
 
-  const selectedIds = meeting.attendees.map((person) => person.id);
+  // Attendance is students only — drop any legacy non-student attendee ids from the checklist.
+  const studentIds = new Set(students.map((person) => person.id));
+  const selectedIds = meeting.attendees
+    .map((person) => person.id)
+    .filter((id) => studentIds.has(id));
   const stamp = (value: Date) => `${formatTeamStamp(value)} ${TEAM_TIME_ZONE_ABBR}`;
 
   return (
@@ -92,7 +96,7 @@ export default async function MeetingDetailPage({ params }: PageProps) {
         <AttendanceForm
           key={`${meeting.id}-${meeting.attendanceRecordedAt?.toISOString() ?? "none"}`}
           meetingId={meeting.id}
-          people={people.map((person) => ({
+          people={students.map((person) => ({
             id: person.id,
             name: person.name,
             role: person.role,
