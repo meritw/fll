@@ -71,10 +71,8 @@ export function LoginForm() {
         router.push("/set-password");
       } else if (user.mustSetDisplayName) {
         router.push("/set-name");
-      } else if (user.role === "parent") {
-        router.push("/journal");
       } else {
-        router.push("/home");
+        router.push("/journal");
       }
       router.refresh();
     } catch (cause) {
@@ -136,10 +134,8 @@ export function LoginForm() {
       const user = sessionResult.data.user;
       if (user.mustSetDisplayName) {
         router.push("/set-name");
-      } else if (user.role === "parent") {
-        router.push("/journal");
       } else {
-        router.push("/home");
+        router.push("/journal");
       }
       router.refresh();
     } catch (cause) {

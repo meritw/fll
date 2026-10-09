@@ -24,7 +24,7 @@ export default async function ConflictsPage() {
           </p>
         </div>
         <Button asChild size="xl" variant="outline">
-          <Link href="/home">Back to home</Link>
+          <Link href="/home">Back to Code</Link>
         </Button>
       </div>
 

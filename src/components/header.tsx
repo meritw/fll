@@ -15,12 +15,11 @@ export function Header({
 }) {
   const coach = isCoach(role);
   const parent = isParent(role);
-  const homeHref = parent ? "/journal" : "/home";
 
   return (
     <header className="border-b bg-card">
       <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-3">
-        <Link href={homeHref} className="text-2xl font-semibold">
+        <Link href="/journal" className="text-2xl font-semibold">
           Rolling Sparks
         </Link>
         {/* On phones the name stays top-right and the tabs take their own row. */}

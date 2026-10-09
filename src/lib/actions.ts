@@ -61,11 +61,7 @@ async function sendAdultEmail(email: string, kind: "link" | "code" | "reset") {
   if (adult) {
     try {
       const requestHeaders = await headers();
-      const callbackURL = adult.mustSetDisplayName
-        ? "/set-name"
-        : isParent(adult.role)
-          ? "/journal"
-          : "/home";
+      const callbackURL = adult.mustSetDisplayName ? "/set-name" : "/journal";
       if (kind === "link") {
         await auth.api.signInMagicLink({
           body: { email: adult.email, callbackURL },

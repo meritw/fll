@@ -2,7 +2,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { auth } from "@/lib/auth";
-import { isCoach, isParent } from "@/lib/roles";
+import { isCoach } from "@/lib/roles";
 
 export async function getSession() {
   return auth.api.getSession({
@@ -33,10 +33,8 @@ export function postAuthPath(user: {
   if (needsDisplayName(user)) {
     return "/set-name";
   }
-  if (isParent(user.role)) {
-    return "/journal";
-  }
-  return "/home";
+  // Everyone lands on the Journal; Code is one tab away.
+  return "/journal";
 }
 
 export async function requireUser(options?: {
@@ -59,7 +57,7 @@ export async function requireUser(options?: {
 export async function requireCoach() {
   const session = await requireUser();
   if (!isCoach(session.user.role)) {
-    redirect(isParent(session.user.role) ? "/journal" : "/home");
+    redirect("/journal");
   }
   return session;
 }
