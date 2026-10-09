@@ -25,10 +25,10 @@ export function StatusBar({
   className?: string;
 }) {
   const parts = [
-    { status: "every" as const, color: "bg-[#A84A1C]" },
-    { status: "some" as const, color: "bg-[#DB8A52]" },
-    { status: "trying" as const, color: "bg-[#F3CDAE]" },
-    { status: "none" as const, color: "bg-[#ECE8DF]" },
+    { status: "every" as const, color: "bg-status-every" },
+    { status: "some" as const, color: "bg-status-some" },
+    { status: "trying" as const, color: "bg-status-trying" },
+    { status: "none" as const, color: "bg-status-none" },
   ];
   return (
     <div className={cn("flex h-3.5 gap-0.5 overflow-hidden rounded-lg", className)} aria-hidden>
@@ -44,10 +44,10 @@ export function StatusBar({
 export function StatusLegend({ counts }: { counts: Record<MissionStatus, number> }) {
   const order: MissionStatus[] = ["every", "some", "trying", "none"];
   const swatch: Record<MissionStatus, string> = {
-    every: "bg-[#A84A1C]",
-    some: "bg-[#DB8A52]",
-    trying: "bg-[#F3CDAE]",
-    none: "bg-[#ECE8DF]",
+    every: "bg-status-every",
+    some: "bg-status-some",
+    trying: "bg-status-trying",
+    none: "bg-status-none",
   };
   return (
     <ul className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-foreground/80">
