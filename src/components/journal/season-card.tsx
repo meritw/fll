@@ -3,6 +3,7 @@ import { cn } from "cn";
 
 import { SeasonDateForm } from "@/components/journal/season-date-form";
 import { removeSeasonDate } from "@/lib/actions";
+import { buildSeasonTimeline, LABEL_SPAN } from "@/lib/season-timeline";
 import { parseTeamDateKey, TEAM_TIME_ZONE, zonedDateTime } from "@/lib/timezone";
 
 export type SeasonPoint = {
@@ -13,8 +14,6 @@ export type SeasonPoint = {
   /** Season events can be removed by coaches. */
   eventId?: string;
 };
-
-const MAX_POINTS = 6;
 
 const shortDate = new Intl.DateTimeFormat("en-US", {
   timeZone: TEAM_TIME_ZONE,
@@ -28,109 +27,199 @@ function labelFor(dayKey: string) {
   return shortDate.format(zonedDateTime(parts.year, parts.month, parts.day, 12, 0)).toUpperCase();
 }
 
-/** Pick what fits on the strip: every upcoming date, then the most recent past ones. */
-function choosePoints(points: SeasonPoint[], today: string) {
-  const sorted = [...points].sort((left, right) => left.dayKey.localeCompare(right.dayKey));
-  const future = sorted.filter((point) => point.dayKey > today).slice(0, MAX_POINTS - 2);
-  const past = sorted.filter((point) => point.dayKey <= today);
-  return [...past.slice(-(MAX_POINTS - future.length)), ...future];
+// Vertical layout of the strip, in px: month labels, then the track, then label rows.
+const TRACK_Y = 36;
+const LANE_TOP = TRACK_Y + 20;
+const LANE_HEIGHT = 50;
+
+const pct = (at: number) => `${at * 100}%`;
+
+/** Places a label at its dot: hanging right from it, or left near the strip's end. */
+function labelStyle(at: number, align: "start" | "end", lane: number) {
+  return {
+    left: pct(at),
+    top: LANE_TOP + lane * LANE_HEIGHT,
+    // The same share of the strip the overlap check reserved, so wide screens get wide labels.
+    width: pct(LABEL_SPAN),
+    transform: align === "start" ? "translateX(-10px)" : "translateX(calc(-100% + 10px))",
+  };
+}
+
+function plural(count: number, one: string) {
+  return `${count} ${count === 1 ? one : `${one}s`}`;
 }
 
 export function SeasonCard({
   points,
   today,
+  firstMeetingDay,
   stats,
   coach,
 }: {
   points: SeasonPoint[];
   today: string;
+  firstMeetingDay: string | null;
   stats: { value: string; label: string }[];
   coach: boolean;
 }) {
-  const chosen = choosePoints(points, today);
-  const hereIndex = chosen.filter((point) => point.dayKey <= today).length;
-  const items: (SeasonPoint | { key: "here" })[] = [
-    ...chosen.slice(0, hereIndex),
-    { key: "here" },
-    ...chosen.slice(hereIndex),
-  ];
-  // Each point sits at the start of an equal column, so point i is at i / n of the width.
-  const trackEnd = (items.length - 1) / items.length;
-  const fillEnd = hereIndex / items.length;
+  const timeline = buildSeasonTimeline({ points, today, firstMeetingDay });
+  const { progress } = timeline;
   const events = points.filter((point) => point.kind === "event");
+  const next = timeline.marks.find((mark) => !mark.past);
+  const summary = progress
+    ? `Week ${timeline.week} · ${progress.percent}% of the way to ${progress.endLabel} · ${plural(progress.weeksLeft, "week")} to go`
+    : `Week ${timeline.week} of the season`;
 
   return (
     <section
       aria-labelledby="season-heading"
       className="flex flex-col gap-5 rounded-3xl bg-card p-5 ring-1 ring-line sm:p-6"
     >
-      <h2 id="season-heading" className="text-xl font-semibold">
-        Season so far
-      </h2>
+      <div className="flex flex-col gap-1">
+        <h2 id="season-heading" className="text-xl font-semibold">
+          Season so far
+        </h2>
+        <p className="text-base text-muted-foreground">{summary}</p>
+      </div>
 
-      <div className="overflow-x-auto pb-1">
-        <div className="relative min-w-[560px] pt-1.5">
+      {/* Phones: a plain progress bar; the labelled strip needs more width. */}
+      <div className="flex flex-col gap-2 sm:hidden">
+        <div className="relative h-5" aria-hidden>
+          <div className="absolute inset-x-0 top-2 h-1.5 rounded-full bg-status-none" />
+          <div
+            className="absolute top-2 left-0 h-1.5 rounded-full bg-primary"
+            style={{ width: pct(timeline.todayAt) }}
+          />
+          {timeline.marks.map((mark) => (
+            <span
+              key={mark.key}
+              className={cn(
+                "absolute top-1 size-3.5 -translate-x-1/2 rounded-full",
+                mark.past ? "bg-primary ring-2 ring-card" : "border-2 border-dashed border-foreground/35 bg-card",
+              )}
+              style={{ left: pct(mark.at) }}
+            />
+          ))}
+          <span
+            className="absolute top-0 size-5 -translate-x-1/2 rounded-full border-4 border-primary bg-card"
+            style={{ left: pct(timeline.todayAt) }}
+          />
+        </div>
+        {next ? (
+          <p className="text-base">
+            <span className="font-semibold">Next:</span> {next.label} ·{" "}
+            <span className="font-mono text-sm text-muted-foreground">{labelFor(next.dayKey)}</span>
+          </p>
+        ) : null}
+      </div>
+
+      {/* Wider screens: every point at its real date, so the spacing is the time between them. */}
+      <div className="hidden overflow-x-auto pb-1 sm:block">
+        <div
+          className="relative mx-2.5 min-w-[720px]"
+          style={{ height: LANE_TOP + timeline.laneCount * LANE_HEIGHT }}
+        >
+          {timeline.months.map((month) => (
+            <div
+              key={month.key}
+              aria-hidden
+              className="absolute top-0 flex flex-col items-center"
+              style={{ left: pct(month.at), transform: "translateX(-50%)" }}
+            >
+              <span className="font-mono text-xs text-muted-foreground uppercase">{month.label}</span>
+              <span className="h-[18px] w-px bg-line" />
+            </div>
+          ))}
           <div
             aria-hidden
-            className="absolute top-4 left-2.5 h-1 rounded bg-status-none"
-            style={{ width: `calc(100% * ${trackEnd})` }}
+            className="absolute inset-x-0 h-1.5 -translate-y-1/2 rounded-full bg-status-none"
+            style={{ top: TRACK_Y }}
           />
           <div
             aria-hidden
-            className="absolute top-4 left-2.5 h-1 rounded bg-primary"
-            style={{ width: `calc(100% * ${fillEnd})` }}
+            className="absolute left-0 h-1.5 -translate-y-1/2 rounded-full bg-primary"
+            style={{ top: TRACK_Y, width: pct(timeline.todayAt) }}
           />
-          <ol
-            className="relative grid gap-2"
-            style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}
-          >
-            {items.map((item, index) => {
-              if (item.key === "here") {
-                return (
-                  <li key="here" className="flex min-w-0 flex-col gap-1.5">
-                    <span className="size-5 rounded-full border-4 border-primary bg-card shadow-[0_0_0_4px_var(--color-brand-tint)]" />
-                    <span className="font-mono text-[13px] font-semibold text-primary">
-                      {labelFor(today)}
-                    </span>
-                    <span className="text-base leading-tight font-semibold text-primary">
-                      We are here
-                    </span>
-                  </li>
-                );
-              }
-              const point = item as SeasonPoint;
-              const past = index < hereIndex;
-              return (
-                <li key={point.key} className="flex min-w-0 flex-col gap-1.5">
-                  <span
-                    className={cn(
-                      "size-5 rounded-full",
-                      past
-                        ? "bg-primary shadow-[0_0_0_4px_var(--color-card)]"
-                        : "border-2 border-dashed border-foreground/35 bg-card",
-                    )}
-                  />
-                  <span className="font-mono text-[13px] text-muted-foreground">
-                    {labelFor(point.dayKey)}
+
+          <ol aria-label="Season dates">
+            {timeline.marks.map((mark) => (
+              <li key={mark.key}>
+                <span
+                  aria-hidden
+                  className={cn(
+                    "absolute size-4 -translate-x-1/2 -translate-y-1/2 rounded-full",
+                    mark.past
+                      ? "bg-primary ring-2 ring-card"
+                      : "border-2 border-dashed border-foreground/35 bg-card",
+                  )}
+                  style={{ left: pct(mark.at), top: TRACK_Y }}
+                />
+                {mark.lane === null ? (
+                  <span className="sr-only">
+                    {labelFor(mark.dayKey)}: {mark.label}
                   </span>
-                  <span
-                    className={cn(
-                      "text-base leading-tight",
-                      past ? "font-semibold" : "font-medium text-muted-foreground",
-                    )}
-                  >
-                    {point.label}
-                  </span>
-                </li>
-              );
-            })}
+                ) : (
+                  <>
+                    <span
+                      aria-hidden
+                      className="absolute w-px -translate-x-1/2 bg-line"
+                      style={{
+                        left: pct(mark.at),
+                        top: TRACK_Y + 10,
+                        height: LANE_TOP - TRACK_Y - 10 + mark.lane * LANE_HEIGHT,
+                      }}
+                    />
+                    <span
+                      className={cn(
+                        "absolute flex flex-col",
+                        mark.align === "end" && "items-end text-right",
+                      )}
+                      style={labelStyle(mark.at, mark.align, mark.lane)}
+                      title={mark.label}
+                    >
+                      <span className="font-mono text-xs text-muted-foreground">
+                        {labelFor(mark.dayKey)}
+                      </span>
+                      <span
+                        className={cn(
+                          "max-w-full truncate text-base leading-tight",
+                          mark.past ? "font-semibold" : "font-medium text-muted-foreground",
+                        )}
+                      >
+                        {mark.label}
+                      </span>
+                    </span>
+                  </>
+                )}
+              </li>
+            ))}
           </ol>
+
+          <span
+            aria-hidden
+            className="absolute size-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-4 border-primary bg-card shadow-[0_0_0_4px_var(--color-brand-tint)]"
+            style={{ left: pct(timeline.todayAt), top: TRACK_Y }}
+          />
+          <span
+            className={cn(
+              "absolute flex flex-col text-primary",
+              timeline.todayAlign === "end" && "items-end text-right",
+            )}
+            style={labelStyle(timeline.todayAt, timeline.todayAlign, timeline.todayLane)}
+          >
+            <span className="font-mono text-xs font-semibold">{labelFor(today)}</span>
+            <span className="text-base leading-tight font-semibold">We are here</span>
+          </span>
         </div>
       </div>
       {points.length === 0 ? (
         <p className="text-base text-muted-foreground">
           Milestones and big dates show up here as the season goes.
           {coach ? " Add the scrimmage and qualifier dates below." : ""}
+        </p>
+      ) : !progress && coach ? (
+        <p className="text-base text-muted-foreground">
+          Add the qualifier date below to see how far through the season we are.
         </p>
       ) : null}
 
