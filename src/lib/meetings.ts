@@ -520,17 +520,23 @@ function meetingHasNotebookContent(row: {
 
 /** Sessions for the engineering notebook index (newest first).
  * Empty calendar shells (no notes, attendance, media, summary, or related journal) are omitted.
+ * Includes notebook body content for the journal timeline (read-only inline view).
  */
 export async function listNotebookSessions(limit = 40) {
   const rows = await getDb().query.meeting.findMany({
     orderBy: (table, { desc: orderDesc }) => [orderDesc(table.startsAt)],
     with: {
-      notes: { columns: { kind: true } },
-      attendees: {
-        columns: { userId: true },
-        with: { user: { columns: { role: true } } },
+      notes: {
+        orderBy: (table, { asc: orderAsc }) => [orderAsc(table.createdAt)],
+        with: { author: { columns: { id: true, name: true } } },
       },
-      media: { columns: { id: true } },
+      attendees: {
+        with: { user: { columns: { id: true, name: true, role: true } } },
+      },
+      media: {
+        orderBy: (table, { desc: orderDesc }) => [orderDesc(table.createdAt)],
+        with: { uploader: { columns: { id: true, name: true } } },
+      },
       journalEntries: { columns: { id: true } },
     },
   });
@@ -539,22 +545,44 @@ export async function listNotebookSessions(limit = 40) {
     .filter(meetingHasNotebookContent)
     .slice(0, limit)
     .map((row) => {
-      const progressCount = row.notes.filter((note) => note.kind === "progress").length;
-      const actionCount = row.notes.filter((note) => note.kind === "action").length;
-      const lessonCount = row.notes.filter((note) => note.kind === "lesson").length;
-      const studentAttendeeCount = row.attendees.filter(
-        (item) => item.user.role === "student",
-      ).length;
+      const notes = row.notes.map((note) => ({
+        id: note.id,
+        kind: (isNotebookKind(note.kind) ? note.kind : "progress") as NotebookKind,
+        body: note.body,
+        createdAt: note.createdAt,
+        authorName: note.author.name,
+      }));
+      const progress = notes.filter((note) => note.kind === "progress");
+      const actions = notes.filter((note) => note.kind === "action");
+      const lessons = notes.filter((note) => note.kind === "lesson");
+      // Attendance UI is students-only; keep non-student rows in DB but hide them.
+      const attendees = row.attendees
+        .map((item) => item.user)
+        .filter((person) => person.role === "student")
+        .sort((left, right) => left.name.localeCompare(right.name));
+      const media = row.media.map((item) => ({
+        id: item.id,
+        contentType: item.contentType,
+        caption: item.caption,
+        createdAt: item.createdAt,
+        uploaderName: item.uploader.name,
+      }));
       return {
         id: row.id,
         startsAt: row.startsAt,
         endsAt: row.endsAt,
         title: row.title,
+        summary: row.summary,
         sessionNumber: row.sessionNumber,
-        attendeeCount: studentAttendeeCount,
-        progressCount,
-        actionCount,
-        lessonCount,
+        attendeeCount: attendees.length,
+        progressCount: progress.length,
+        actionCount: actions.length,
+        lessonCount: lessons.length,
+        attendees,
+        progress,
+        actions,
+        lessons,
+        media,
       };
     });
 }
