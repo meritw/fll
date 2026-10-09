@@ -13,22 +13,29 @@ import {
   setDisplayName,
 } from "@/lib/accounts";
 import { findDeliverableEmailUser } from "@/lib/coaches";
-import { createJournalEntry } from "@/lib/journal";
-import { attachMeetingMedia } from "@/lib/media";
+import { addSeasonEvent, createJournalEntry, deleteSeasonEvent } from "@/lib/journal";
+import { attachMeetingMedia, updateMediaCaption } from "@/lib/media";
 import { VAGUE_EMAIL_MESSAGE } from "@/lib/messages";
 import {
   addMeetingNote,
-  createOneOffMeeting,
-  saveAttendance,
-  updateMeetingSummary,
+  ensureTodayMeeting,
+  findTodayMeeting,
+  setAttendance,
 } from "@/lib/meetings";
-import { isNotebookKind } from "@/lib/notebook";
+import { isMissionStatus, MISSION_STATUS_LABELS } from "@/lib/mission-status";
+import { isDayNoteKind, type DayNoteKind } from "@/lib/notebook";
+import {
+  addMissionAssignment,
+  addMissionNote,
+  removeMissionAssignment,
+  setMissionStatus,
+} from "@/lib/missions-board";
 import {
   addProgramVersion,
   createProgram,
   renameProgram,
 } from "@/lib/programs";
-import { isParent } from "@/lib/roles";
+import { isCoach, isParent, isStudent } from "@/lib/roles";
 import { requireCoach, requireUser } from "@/lib/session";
 
 export async function requestMagicLink(email: string) {
@@ -56,7 +63,7 @@ async function sendAdultEmail(email: string, kind: "link" | "code" | "reset") {
       const callbackURL = adult.mustSetDisplayName
         ? "/set-name"
         : isParent(adult.role)
-          ? "/meetings"
+          ? "/journal"
           : "/home";
       if (kind === "link") {
         await auth.api.signInMagicLink({
@@ -244,116 +251,277 @@ export async function completeSetDisplayName(input: {
   return { message: "Name saved." };
 }
 
-export async function addOneOffMeeting(
-  _prev: ActionState,
-  formData: FormData,
-): Promise<ActionState> {
-  const session = await requireUser();
-  const startHourRaw = String(formData.get("startHour") ?? "18");
-  const endHourRaw = String(formData.get("endHour") ?? "20");
-  const sessionRaw = String(formData.get("sessionNumber") ?? "").trim();
-  const result = await createOneOffMeeting({
-    userId: session.user.id,
-    dateKey: String(formData.get("dateKey") ?? ""),
-    title: String(formData.get("title") ?? ""),
-    summary: String(formData.get("summary") ?? ""),
-    startHour: Number(startHourRaw),
-    endHour: Number(endHourRaw),
-    sessionNumber: sessionRaw ? Number(sessionRaw) : undefined,
-  });
-  if ("error" in result) {
-    return result;
-  }
-  revalidatePath("/meetings");
-  revalidatePath("/journal");
-  revalidatePath(`/meetings/${result.id}`);
-  redirect(`/meetings/${result.id}`);
+/** Students and coaches write the notebook; parents add photos and "other" notes. */
+function canWriteNotebook(role: string | null | undefined) {
+  return isStudent(role) || isCoach(role);
 }
 
-export async function recordMeetingAttendance(
-  _prev: ActionState,
-  formData: FormData,
-): Promise<ActionState> {
+const NOT_FOR_PARENTS = "Kids and coaches add this part.";
+
+function revalidateJournal(meetingId?: string | null) {
+  revalidatePath("/journal");
+  if (meetingId) {
+    revalidatePath(`/journal/${meetingId}`);
+  }
+}
+
+/** Start (or open) today's meeting, then go to its page. */
+export async function startTodayMeeting() {
   const session = await requireUser();
-  const meetingId = String(formData.get("meetingId") ?? "");
-  const attendeeIds = formData.getAll("attendeeIds").map(String);
-  const result = await saveAttendance({
+  if (!canWriteNotebook(session.user.role)) {
+    redirect("/journal");
+  }
+  const result = await ensureTodayMeeting(session.user.id);
+  revalidateJournal(result.id);
+  redirect(`/journal/${result.id}`);
+}
+
+/** Today's meeting id for uploads, starting the meeting if needed. */
+export async function ensureTodayMeetingId(): Promise<{ id: string } | { error: string }> {
+  const session = await requireUser();
+  if (!canWriteNotebook(session.user.role)) {
+    const today = await findTodayMeeting();
+    return today
+      ? { id: today.id }
+      : { error: "There's no meeting today yet. Pick a meeting day above." };
+  }
+  const result = await ensureTodayMeeting(session.user.id);
+  if (result.created) {
+    revalidateJournal(result.id);
+  }
+  return { id: result.id };
+}
+
+export type AutoSaveResult = { error: string } | { ok: true; meetingId?: string; message: string };
+
+/** One tap on a name. `meetingId: null` means today (and starts today's meeting). */
+export async function toggleAttendance(input: {
+  meetingId: string | null;
+  userId: string;
+  present: boolean;
+}): Promise<AutoSaveResult> {
+  const session = await requireUser();
+  if (!canWriteNotebook(session.user.role)) {
+    return { error: NOT_FOR_PARENTS };
+  }
+  const meetingId = input.meetingId ?? (await ensureTodayMeeting(session.user.id)).id;
+  const result = await setAttendance({
     meetingId,
+    userId: input.userId,
+    present: input.present,
     recordedById: session.user.id,
-    attendeeIds,
   });
   if ("error" in result) {
-    return result;
+    return { error: result.error ?? "That didn't save. Try again." };
   }
-  revalidatePath("/meetings");
-  revalidatePath("/journal");
-  revalidatePath(`/meetings/${meetingId}`);
-  return { message: "Attendance saved." };
-}
-
-export async function postMeetingNote(
-  _prev: ActionState,
-  formData: FormData,
-): Promise<ActionState> {
-  const session = await requireUser();
-  const meetingId = String(formData.get("meetingId") ?? "");
-  const kindRaw = String(formData.get("kind") ?? "progress");
-  if (!isNotebookKind(kindRaw)) {
-    return { error: "Pick a notebook section." };
-  }
-  const result = await addMeetingNote({
+  revalidateJournal(meetingId);
+  return {
+    ok: true,
     meetingId,
-    authorId: session.user.id,
-    body: String(formData.get("body") ?? ""),
-    kind: kindRaw,
-  });
-  if ("error" in result) {
-    return result;
-  }
-  revalidatePath(`/meetings/${meetingId}`);
-  revalidatePath("/journal");
-  return { message: "Added to the notebook." };
+    message: `${result.name} is marked ${input.present ? "here" : "away"}.`,
+  };
 }
 
-export async function saveMeetingDetails(
-  _prev: ActionState,
-  formData: FormData,
-): Promise<ActionState> {
-  await requireUser();
-  const meetingId = String(formData.get("meetingId") ?? "");
-  const sessionRaw = String(formData.get("sessionNumber") ?? "").trim();
-  const result = await updateMeetingSummary({
-    meetingId,
-    title: String(formData.get("title") ?? ""),
-    summary: String(formData.get("summary") ?? ""),
-    sessionNumber: sessionRaw ? Number(sessionRaw) : null,
-  });
-  if ("error" in result) {
-    return result;
-  }
-  revalidatePath("/meetings");
-  revalidatePath("/journal");
-  revalidatePath(`/meetings/${meetingId}`);
-  return { message: "Session updated." };
-}
-
-export async function addJournalEntry(
-  _prev: ActionState,
-  formData: FormData,
-): Promise<ActionState> {
+/**
+ * A note from the day page. Notebook kinds go to the meeting's notebook; "other"
+ * and milestones become journal entries. `meetingId: "home"` = not at a meeting.
+ */
+export async function postDayNote(input: {
+  meetingId: string | null;
+  kind: DayNoteKind;
+  body: string;
+  milestone: boolean;
+}): Promise<AutoSaveResult> {
   const session = await requireUser();
-  const related = String(formData.get("relatedMeetingId") ?? "").trim();
-  const result = await createJournalEntry({
-    authorId: session.user.id,
-    title: String(formData.get("title") ?? ""),
-    body: String(formData.get("body") ?? ""),
-    relatedMeetingId: related || null,
+  const writer = canWriteNotebook(session.user.role);
+  if (!isDayNoteKind(input.kind)) {
+    return { error: "Pick a kind of note." };
+  }
+  if (!writer && (input.kind !== "other" || input.milestone)) {
+    return { error: NOT_FOR_PARENTS };
+  }
+
+  let meetingId: string | null;
+  if (input.meetingId === "home") {
+    meetingId = null;
+  } else if (input.meetingId) {
+    meetingId = input.meetingId;
+  } else if (writer) {
+    meetingId = (await ensureTodayMeeting(session.user.id)).id;
+  } else {
+    meetingId = (await findTodayMeeting())?.id ?? null;
+  }
+
+  if (input.kind === "other" || input.milestone || !meetingId) {
+    const result = await createJournalEntry({
+      authorId: session.user.id,
+      body: input.body,
+      relatedMeetingId: meetingId,
+      milestone: input.milestone,
+    });
+    if ("error" in result) {
+      return { error: result.error ?? "That didn't save. Try again." };
+    }
+  } else {
+    const result = await addMeetingNote({
+      meetingId,
+      authorId: session.user.id,
+      body: input.body,
+      kind: input.kind,
+    });
+    if ("error" in result) {
+      return { error: result.error ?? "That didn't save. Try again." };
+    }
+  }
+  revalidateJournal(meetingId);
+  return {
+    ok: true,
+    meetingId: meetingId ?? undefined,
+    message: input.milestone ? "Milestone added to the timeline." : "Added to the journal.",
+  };
+}
+
+export async function saveMediaCaption(input: {
+  mediaId: string;
+  caption: string;
+}): Promise<AutoSaveResult> {
+  const session = await requireUser();
+  const result = await updateMediaCaption({
+    ...input,
+    userId: session.user.id,
+    isCoach: isCoach(session.user.role),
   });
   if ("error" in result) {
-    return result;
+    return { error: result.error ?? "That didn't save. Try again." };
+  }
+  revalidateJournal(result.meetingId);
+  revalidatePath("/gallery");
+  return { ok: true, message: "Caption saved." };
+}
+
+function revalidateMissions(meetingId?: string | null) {
+  revalidatePath("/missions");
+  revalidateJournal(meetingId);
+}
+
+export async function setMissionStatusAction(input: {
+  missionId: number;
+  status: string;
+  meetingId?: string | null;
+}): Promise<AutoSaveResult> {
+  const session = await requireUser();
+  if (!canWriteNotebook(session.user.role)) {
+    return { error: NOT_FOR_PARENTS };
+  }
+  if (!isMissionStatus(input.status)) {
+    return { error: "Pick how it's going." };
+  }
+  const result = await setMissionStatus({
+    missionId: input.missionId,
+    status: input.status,
+    userId: session.user.id,
+    meetingId: input.meetingId,
+  });
+  if ("error" in result) {
+    return { error: result.error ?? "That didn't save. Try again." };
+  }
+  revalidateMissions(input.meetingId);
+  return {
+    ok: true,
+    message: `${result.missionName}: ${MISSION_STATUS_LABELS[input.status].toLowerCase()}.`,
+  };
+}
+
+/** Students join or leave a mission themselves. */
+export async function setMyMission(input: {
+  missionId: number;
+  join: boolean;
+}): Promise<AutoSaveResult> {
+  const session = await requireUser();
+  if (!isStudent(session.user.role)) {
+    return { error: "Students choose their own missions. Coaches can assign kids below." };
+  }
+  const result = input.join
+    ? await addMissionAssignment({
+        missionId: input.missionId,
+        userId: session.user.id,
+        assignedById: session.user.id,
+      })
+    : await removeMissionAssignment({ missionId: input.missionId, userId: session.user.id });
+  if ("error" in result) {
+    return { error: result.error ?? "That didn't save. Try again." };
+  }
+  revalidateMissions();
+  return { ok: true, message: input.join ? "You're on this mission." : "You left this mission." };
+}
+
+/** Coaches add or remove any student on a mission. */
+export async function setMissionAssignment(input: {
+  missionId: number;
+  userId: string;
+  assigned: boolean;
+}): Promise<AutoSaveResult> {
+  const session = await requireUser();
+  if (!isCoach(session.user.role)) {
+    return { error: "Only coaches can change who's on a mission." };
+  }
+  const result = input.assigned
+    ? await addMissionAssignment({
+        missionId: input.missionId,
+        userId: input.userId,
+        assignedById: session.user.id,
+      })
+    : await removeMissionAssignment({ missionId: input.missionId, userId: input.userId });
+  if ("error" in result) {
+    return { error: result.error ?? "That didn't save. Try again." };
+  }
+  revalidateMissions();
+  return { ok: true, message: "Saved." };
+}
+
+export async function postMissionNote(input: {
+  missionId: number;
+  body: string;
+  meetingId?: string | null;
+}): Promise<AutoSaveResult> {
+  const session = await requireUser();
+  if (!canWriteNotebook(session.user.role)) {
+    return { error: NOT_FOR_PARENTS };
+  }
+  const result = await addMissionNote({
+    missionId: input.missionId,
+    body: input.body,
+    authorId: session.user.id,
+    meetingId: input.meetingId,
+  });
+  if ("error" in result) {
+    return { error: result.error ?? "That didn't save. Try again." };
+  }
+  revalidateMissions(input.meetingId);
+  return { ok: true, message: "Note saved." };
+}
+
+export async function addSeasonDate(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const session = await requireCoach();
+  const result = await addSeasonEvent({
+    title: String(formData.get("title") ?? ""),
+    dayKey: String(formData.get("dayKey") ?? ""),
+    userId: session.user.id,
+  });
+  if ("error" in result) {
+    return { error: result.error };
   }
   revalidatePath("/journal");
-  return { message: "Journal entry saved." };
+  return { message: "Date added." };
+}
+
+export async function removeSeasonDate(formData: FormData) {
+  await requireCoach();
+  await deleteSeasonEvent(String(formData.get("id") ?? ""));
+  revalidatePath("/journal");
 }
 
 export async function saveMeetingMedia(input: {
@@ -372,10 +540,9 @@ export async function saveMeetingMedia(input: {
   if ("error" in result) {
     return result;
   }
-  revalidatePath(`/meetings/${input.meetingId}`);
+  revalidateJournal(input.meetingId);
   revalidatePath("/gallery");
-  revalidatePath("/journal");
-  return { message: "Photo or video added.", id: result.id };
+  return { message: "Added to the journal.", id: result.id };
 }
 
 export type TeamProjectUploadResult =

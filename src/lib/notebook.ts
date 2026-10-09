@@ -11,3 +11,11 @@ export const NOTEBOOK_SECTION_LABELS: Record<NotebookKind, string> = {
 export function isNotebookKind(value: string): value is NotebookKind {
   return (NOTEBOOK_KINDS as readonly string[]).includes(value);
 }
+
+/** Kinds offered on the journal's Note tab: the notebook sections plus "other". */
+export const DAY_NOTE_KINDS = [...NOTEBOOK_KINDS, "other"] as const;
+export type DayNoteKind = (typeof DAY_NOTE_KINDS)[number];
+
+export function isDayNoteKind(value: string): value is DayNoteKind {
+  return (DAY_NOTE_KINDS as readonly string[]).includes(value);
+}

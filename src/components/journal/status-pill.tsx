@@ -1,0 +1,62 @@
+import { cn } from "cn";
+
+import { MISSION_STATUS_CLASSES, MISSION_STATUS_LABELS, type MissionStatus } from "@/lib/mission-status";
+
+export function StatusPill({ status, className }: { status: MissionStatus; className?: string }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex min-h-7 items-center whitespace-nowrap rounded-full px-2.5 text-sm font-semibold",
+        MISSION_STATUS_CLASSES[status],
+        className,
+      )}
+    >
+      {MISSION_STATUS_LABELS[status]}
+    </span>
+  );
+}
+
+/** Stacked bar: every / some / trying / none, sized by count. */
+export function StatusBar({
+  counts,
+  className,
+}: {
+  counts: Record<MissionStatus, number>;
+  className?: string;
+}) {
+  const parts = [
+    { status: "every" as const, color: "bg-[#A84A1C]" },
+    { status: "some" as const, color: "bg-[#DB8A52]" },
+    { status: "trying" as const, color: "bg-[#F3CDAE]" },
+    { status: "none" as const, color: "bg-[#ECE8DF]" },
+  ];
+  return (
+    <div className={cn("flex h-3.5 gap-0.5 overflow-hidden rounded-lg", className)} aria-hidden>
+      {parts.map((part) =>
+        counts[part.status] > 0 ? (
+          <span key={part.status} className={part.color} style={{ flex: counts[part.status] }} />
+        ) : null,
+      )}
+    </div>
+  );
+}
+
+export function StatusLegend({ counts }: { counts: Record<MissionStatus, number> }) {
+  const order: MissionStatus[] = ["every", "some", "trying", "none"];
+  const swatch: Record<MissionStatus, string> = {
+    every: "bg-[#A84A1C]",
+    some: "bg-[#DB8A52]",
+    trying: "bg-[#F3CDAE]",
+    none: "bg-[#ECE8DF]",
+  };
+  return (
+    <ul className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-foreground/80">
+      {order.map((status) => (
+        <li key={status} className="flex items-center gap-1.5">
+          <span className={cn("size-3 rounded-sm", swatch[status])} aria-hidden />
+          {counts[status]} {MISSION_STATUS_LABELS[status].toLowerCase()}
+        </li>
+      ))}
+    </ul>
+  );
+}

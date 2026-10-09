@@ -14,12 +14,12 @@ export const metadata: Metadata = {
 
 /**
  * License panel sits above the guided zip workflow from the team-project home.
- * Parents do not use coding tools — send them to Meetings.
+ * Parents do not use coding tools — send them to the Journal.
  */
 export default async function HomeWorkspacePage() {
   const session = await requireUser();
   if (isParent(session.user.role)) {
-    redirect("/meetings");
+    redirect("/journal");
   }
 
   const [summary, license] = await Promise.all([

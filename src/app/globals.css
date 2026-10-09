@@ -46,6 +46,19 @@
   --radius-2xl: calc(var(--radius) * 1.8);
   --radius-3xl: calc(var(--radius) * 2.2);
   --radius-4xl: calc(var(--radius) * 2.6);
+  /* Journal + Missions: semantic colors (fixed, light theme only). */
+  --color-brand-dark: #7e3511;
+  --color-brand-tint: #f6e6da;
+  --color-brand-soft: #fdf6f0;
+  --color-line: #e6e2d8;
+  --color-present: #3e7a4b;
+  --color-present-tint: #eef3ec;
+  --color-present-ink: #24452a;
+  --color-info: #2f5d8a;
+  --color-info-tint: #e3ecf5;
+  --color-info-soft: #f1f5f9;
+  --color-info-ink: #1e3f60;
+  --color-paper: #f7f5ef;
 }
 
 :root {

@@ -63,7 +63,7 @@ export function GalleryGrid({ items }: { items: GalleryItem[] }) {
           ) : null}
           <p className="text-base">
             <Link
-              href={`/meetings/${item.meetingId}`}
+              href={`/journal/${item.meetingId}`}
               className="font-medium underline-offset-4 hover:underline"
             >
               {item.sessionLabel}

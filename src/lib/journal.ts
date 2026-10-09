@@ -1,7 +1,9 @@
-import { desc, eq } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { journalEntry, meeting } from "@/db/schema";
+import { journalEntry, seasonEvent } from "@/db/schema";
+import { meetingExists } from "@/lib/meetings";
+import { parseTeamDateKey } from "@/lib/timezone";
 
 export async function listJournalEntries() {
   const rows = await getDb().query.journalEntry.findMany({
@@ -9,7 +11,7 @@ export async function listJournalEntries() {
     with: {
       author: { columns: { id: true, name: true } },
       relatedMeeting: {
-        columns: { id: true, startsAt: true, endsAt: true, title: true },
+        columns: { id: true, startsAt: true, title: true, sessionNumber: true },
       },
     },
   });
@@ -18,18 +20,24 @@ export async function listJournalEntries() {
     id: row.id,
     title: row.title,
     body: row.body,
+    milestone: row.milestone,
     createdAt: row.createdAt,
     authorName: row.author.name,
     authorId: row.author.id,
-    relatedMeeting: row.relatedMeeting
-      ? {
-          id: row.relatedMeeting.id,
-          startsAt: row.relatedMeeting.startsAt,
-          endsAt: row.relatedMeeting.endsAt,
-          title: row.relatedMeeting.title,
-        }
-      : null,
+    relatedMeeting: row.relatedMeeting,
   }));
+}
+
+export type JournalEntryItem = Awaited<ReturnType<typeof listJournalEntries>>[number];
+
+/** Headline for a milestone or note card: its title, else the first line of the body. */
+export function entryHeadline(entry: { title: string | null; body: string }) {
+  const title = entry.title?.trim();
+  if (title) {
+    return title;
+  }
+  const first = entry.body.trim().split("\n")[0] ?? "";
+  return first.length > 90 ? `${first.slice(0, 87).trimEnd()}…` : first;
 }
 
 export async function createJournalEntry(input: {
@@ -37,6 +45,7 @@ export async function createJournalEntry(input: {
   body: string;
   title?: string;
   relatedMeetingId?: string | null;
+  milestone?: boolean;
 }) {
   const body = input.body.trim();
   if (!body) {
@@ -52,15 +61,8 @@ export async function createJournalEntry(input: {
   }
 
   const relatedMeetingId: string | null = input.relatedMeetingId?.trim() || null;
-  if (relatedMeetingId) {
-    const [existing] = await getDb()
-      .select({ id: meeting.id })
-      .from(meeting)
-      .where(eq(meeting.id, relatedMeetingId))
-      .limit(1);
-    if (!existing) {
-      return { error: "That meeting is missing." };
-    }
+  if (relatedMeetingId && !(await meetingExists(relatedMeetingId))) {
+    return { error: "That meeting is missing." };
   }
 
   const id = crypto.randomUUID();
@@ -70,42 +72,40 @@ export async function createJournalEntry(input: {
     body,
     authorId: input.authorId,
     relatedMeetingId,
+    milestone: Boolean(input.milestone),
   });
 
   return { id };
 }
 
-export async function getJournalEntry(id: string) {
-  const row = await getDb().query.journalEntry.findFirst({
-    where: (table, { eq: equals }) => equals(table.id, id),
-    with: {
-      author: { columns: { id: true, name: true } },
-      relatedMeeting: {
-        columns: { id: true, startsAt: true, endsAt: true, title: true },
-      },
-    },
-  });
-  if (!row) {
-    return null;
-  }
-  return {
-    id: row.id,
-    title: row.title,
-    body: row.body,
-    createdAt: row.createdAt,
-    authorName: row.author.name,
-    relatedMeeting: row.relatedMeeting,
-  };
+export async function listSeasonEvents() {
+  return getDb()
+    .select({ id: seasonEvent.id, title: seasonEvent.title, dayKey: seasonEvent.dayKey })
+    .from(seasonEvent)
+    .orderBy(asc(seasonEvent.dayKey));
 }
 
-export async function listJournalEntriesRecent(limit = 5) {
-  return getDb()
-    .select({
-      id: journalEntry.id,
-      title: journalEntry.title,
-      createdAt: journalEntry.createdAt,
-    })
-    .from(journalEntry)
-    .orderBy(desc(journalEntry.createdAt))
-    .limit(limit);
+export async function addSeasonEvent(input: { title: string; dayKey: string; userId: string }) {
+  const title = input.title.trim();
+  if (!title) {
+    return { error: "Name the date, like Qualifier." };
+  }
+  if (title.length > 60) {
+    return { error: "Use a shorter name." };
+  }
+  if (!parseTeamDateKey(input.dayKey)) {
+    return { error: "Pick a date." };
+  }
+  await getDb().insert(seasonEvent).values({
+    id: crypto.randomUUID(),
+    title,
+    dayKey: input.dayKey.trim(),
+    createdById: input.userId,
+  });
+  return { ok: true as const };
+}
+
+export async function deleteSeasonEvent(id: string) {
+  await getDb().delete(seasonEvent).where(eq(seasonEvent.id, id));
+  return { ok: true as const };
 }
