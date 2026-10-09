@@ -16,7 +16,13 @@ import {
 } from "@/components/journal/timeline";
 import { listStudents } from "@/lib/accounts";
 import { startTodayMeeting } from "@/lib/actions";
-import { entryHeadline, listJournalEntries, listSeasonEvents, type JournalEntryItem } from "@/lib/journal";
+import {
+  entryHeadline,
+  journalEntryAt,
+  listJournalEntries,
+  listSeasonEvents,
+  type JournalEntryItem,
+} from "@/lib/journal";
 import { countMedia, listGalleryMedia } from "@/lib/media";
 import {
   findTodayMeeting,
@@ -104,14 +110,15 @@ export default async function JournalPage({ searchParams }: PageProps) {
   const todayDay = todayKey();
 
   // Timeline: meetings, milestones, and notes not tied to a meeting.
+  // Meeting-linked milestones/notes use the meeting day, not insert time.
   const all: Item[] = [
     ...records.map((record): Item => ({ kind: "session", at: record.startsAt, record })),
     ...entries
       .filter((entry) => entry.milestone)
-      .map((entry): Item => ({ kind: "milestone", at: entry.createdAt, entry })),
+      .map((entry): Item => ({ kind: "milestone", at: journalEntryAt(entry), entry })),
     ...entries
       .filter((entry) => !entry.milestone && !entry.relatedMeeting)
-      .map((entry): Item => ({ kind: "note", at: entry.createdAt, entry })),
+      .map((entry): Item => ({ kind: "note", at: journalEntryAt(entry), entry })),
   ].sort((left, right) => right.at.getTime() - left.at.getTime());
   const items = all.filter((item) => keep(item, show));
   const newestSessionId = records[0]?.id;
@@ -133,7 +140,7 @@ export default async function JournalPage({ searchParams }: PageProps) {
       .filter((entry) => entry.milestone)
       .map((entry) => ({
         key: `ms-${entry.id}`,
-        dayKey: teamDateKey(entry.createdAt),
+        dayKey: teamDateKey(journalEntryAt(entry)),
         label: entryHeadline(entry),
         kind: "milestone" as const,
       })),

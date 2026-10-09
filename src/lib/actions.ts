@@ -14,6 +14,7 @@ import {
   setDisplayName,
 } from "@/lib/accounts";
 import { findDeliverableEmailUser } from "@/lib/coaches";
+import { planDayNoteWrites } from "@/lib/day-note-plan";
 import { addSeasonEvent, createJournalEntry, deleteSeasonEvent } from "@/lib/journal";
 import { attachMeetingMedia, updateMediaCaption } from "@/lib/media";
 import { VAGUE_EMAIL_MESSAGE } from "@/lib/messages";
@@ -467,7 +468,8 @@ export async function toggleAttendance(input: {
 
 /**
  * A note from the day page. Notebook kinds go to the meeting's notebook; "other"
- * and milestones become journal entries. `meetingId: "home"` = not at a meeting.
+ * becomes a journal entry. Checking "big moment" also writes a milestone on the
+ * season timeline (dated to the meeting). `meetingId: "home"` = not at a meeting.
  */
 export async function postDayNote(input: {
   meetingId: string | null;
@@ -499,28 +501,41 @@ export async function postDayNote(input: {
     meetingId = (await findTodayMeeting())?.id ?? null;
   }
 
-  if (input.kind === "other" || input.milestone || !meetingId) {
+  const fromHome = input.meetingId === "home";
+  const writes = planDayNoteWrites({
+    kind: input.kind,
+    milestone: input.milestone,
+    hasMeeting: Boolean(meetingId),
+  });
+
+  for (const write of writes) {
+    if (write.type === "meetingNote") {
+      if (!meetingId) {
+        return { error: "That meeting is missing." };
+      }
+      const result = await addMeetingNote({
+        meetingId,
+        authorId: session.user.id,
+        body: input.body,
+        kind: write.kind,
+      });
+      if ("error" in result) {
+        return { error: result.error ?? "That didn't save. Try again." };
+      }
+      continue;
+    }
     const result = await createJournalEntry({
       authorId: session.user.id,
       body: input.body,
       relatedMeetingId: meetingId,
-      milestone: input.milestone,
-      fromHome: input.meetingId === "home",
-    });
-    if ("error" in result) {
-      return { error: result.error ?? "That didn't save. Try again." };
-    }
-  } else {
-    const result = await addMeetingNote({
-      meetingId,
-      authorId: session.user.id,
-      body: input.body,
-      kind: input.kind,
+      milestone: write.milestone,
+      fromHome,
     });
     if ("error" in result) {
       return { error: result.error ?? "That didn't save. Try again." };
     }
   }
+
   revalidateJournal(meetingId);
   return {
     ok: true,
