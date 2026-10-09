@@ -1,9 +1,10 @@
 import { asc, eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { journalEntry, seasonEvent } from "@/db/schema";
-import { meetingExists } from "@/lib/meetings";
+import { journalEntry, meeting, seasonEvent } from "@/db/schema";
 import { parseTeamDateKey } from "@/lib/timezone";
+
+export { journalEntryAt } from "@/lib/day-note-plan";
 
 export async function listJournalEntries() {
   const rows = await getDb().query.journalEntry.findMany({
@@ -63,8 +64,17 @@ export async function createJournalEntry(input: {
   }
 
   const relatedMeetingId: string | null = input.relatedMeetingId?.trim() || null;
-  if (relatedMeetingId && !(await meetingExists(relatedMeetingId))) {
-    return { error: "That meeting is missing." };
+  let meetingStartsAt: Date | null = null;
+  if (relatedMeetingId) {
+    const [row] = await getDb()
+      .select({ startsAt: meeting.startsAt })
+      .from(meeting)
+      .where(eq(meeting.id, relatedMeetingId))
+      .limit(1);
+    if (!row) {
+      return { error: "That meeting is missing." };
+    }
+    meetingStartsAt = row.startsAt;
   }
 
   const id = crypto.randomUUID();
@@ -76,6 +86,8 @@ export async function createJournalEntry(input: {
     relatedMeetingId,
     milestone: Boolean(input.milestone),
     fromHome: Boolean(input.fromHome) && !relatedMeetingId,
+    // Attach milestones / meeting-linked notes to the meeting day, not "now".
+    ...(meetingStartsAt ? { createdAt: meetingStartsAt } : {}),
   });
 
   return { id };
