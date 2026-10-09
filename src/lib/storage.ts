@@ -126,22 +126,41 @@ export async function headProgramObject(key: string) {
 }
 
 export async function openProgramObject(key: string) {
-  return openStorageObject(key);
+  const opened = await openStorageObject(key);
+  return opened?.stream ?? null;
 }
 
-export async function openStorageObject(key: string) {
+export type OpenedStorageObject = {
+  stream: ReadableStream;
+  contentLength?: number;
+  contentRange?: string;
+};
+
+/** Open an object; optional `range` is an HTTP Range value (e.g. `bytes=0-1`). */
+export async function openStorageObject(
+  key: string,
+  options?: { range?: string },
+): Promise<OpenedStorageObject | null> {
   const config = storageConfig();
   if (!config) {
     return null;
   }
   try {
     const result = await getClient(config).send(
-      new GetObjectCommand({ Bucket: config.bucket, Key: key }),
+      new GetObjectCommand({
+        Bucket: config.bucket,
+        Key: key,
+        ...(options?.range ? { Range: options.range } : {}),
+      }),
     );
     if (!result.Body) {
       return null;
     }
-    return result.Body.transformToWebStream();
+    return {
+      stream: result.Body.transformToWebStream(),
+      contentLength: result.ContentLength,
+      contentRange: result.ContentRange,
+    };
   } catch (error) {
     const name = error instanceof Error ? error.name : "";
     if (name === "NotFound" || name === "NoSuchKey") {
