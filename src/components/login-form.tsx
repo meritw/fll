@@ -65,10 +65,14 @@ export function LoginForm() {
         setError(SESSION_NOT_STUCK_MESSAGE);
         return;
       }
-      const mustChange = Boolean(sessionResult.data.user.mustChangePassword);
-      if (mustChange) {
+      const user = sessionResult.data.user;
+      if (user.mustChangePassword) {
         rememberStarterPassword(password);
         router.push("/set-password");
+      } else if (user.mustSetDisplayName) {
+        router.push("/set-name");
+      } else if (user.role === "parent") {
+        router.push("/meetings");
       } else {
         router.push("/home");
       }
@@ -129,7 +133,14 @@ export function LoginForm() {
         setError(SESSION_NOT_STUCK_MESSAGE);
         return;
       }
-      router.push("/home");
+      const user = sessionResult.data.user;
+      if (user.mustSetDisplayName) {
+        router.push("/set-name");
+      } else if (user.role === "parent") {
+        router.push("/meetings");
+      } else {
+        router.push("/home");
+      }
       router.refresh();
     } catch (cause) {
       const message =
@@ -185,7 +196,7 @@ export function LoginForm() {
       </form>
 
       <section className="flex flex-col gap-4 border-t pt-6">
-        <h2 className="text-2xl font-semibold">Coach sign-in</h2>
+        <h2 className="text-2xl font-semibold">Coach or parent sign-in</h2>
         <div className="flex flex-col gap-2">
           <Label htmlFor="email" className="text-lg">
             Email

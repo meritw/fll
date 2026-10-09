@@ -47,7 +47,11 @@ export default async function MeetingDetailPage({ params }: PageProps) {
     notFound();
   }
 
-  const selectedIds = meeting.attendees.map((person) => person.id);
+  // Attendance is students only — drop any legacy non-student attendee ids from the checklist.
+  const studentIds = new Set(students.map((person) => person.id));
+  const selectedIds = meeting.attendees
+    .map((person) => person.id)
+    .filter((id) => studentIds.has(id));
   const stamp = (value: Date) => `${formatTeamStamp(value)} ${TEAM_TIME_ZONE_ABBR}`;
 
   return (

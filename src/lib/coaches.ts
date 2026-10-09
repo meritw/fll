@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 
 import { user } from "@/db/schema";
 import { getDb } from "@/db";
+import { usesEmailSignIn } from "@/lib/roles";
 
 export function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
@@ -14,7 +15,8 @@ export function isPlaceholderEmail(email: string) {
   );
 }
 
-export async function findDeliverableCoach(email: string) {
+/** Coach or parent with a real email (magic link / OTP / password reset). */
+export async function findDeliverableEmailUser(email: string) {
   const normalized = normalizeEmail(email);
   if (!normalized || isPlaceholderEmail(normalized)) {
     return null;
@@ -26,9 +28,18 @@ export async function findDeliverableCoach(email: string) {
     .where(eq(user.email, normalized))
     .limit(1);
 
-  if (!row || row.role !== "coach") {
+  if (!row || !usesEmailSignIn(row.role)) {
     return null;
   }
 
+  return row;
+}
+
+/** @deprecated Prefer findDeliverableEmailUser — kept for callers that mean coach-only. */
+export async function findDeliverableCoach(email: string) {
+  const row = await findDeliverableEmailUser(email);
+  if (!row || row.role !== "coach") {
+    return null;
+  }
   return row;
 }

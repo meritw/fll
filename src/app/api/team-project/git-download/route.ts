@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { auth } from "@/lib/auth";
+import { isCoach } from "@/lib/roles";
 import { buildGitRepoZip } from "@/lib/team-project";
 
 export const runtime = "nodejs";
@@ -22,7 +23,13 @@ export async function GET(request: Request) {
       { status: 403 },
     );
   }
-  if (session.user.role !== "coach") {
+  if (session.user.mustSetDisplayName) {
+    return NextResponse.json(
+      { error: "Choose your display name before downloading." },
+      { status: 403 },
+    );
+  }
+  if (!isCoach(session.user.role)) {
     return NextResponse.json(
       { error: "Only coaches can download the full Git repo." },
       { status: 403 },

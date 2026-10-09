@@ -81,6 +81,9 @@ export async function GET(
   if (session.user.mustChangePassword) {
     return Response.redirect(new URL("/set-password", request.url));
   }
+  if (session.user.mustSetDisplayName) {
+    return Response.redirect(new URL("/set-name", request.url));
+  }
 
   const { id } = await context.params;
   const media = await getMeetingMediaFile(id);

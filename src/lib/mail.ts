@@ -1,4 +1,4 @@
-import { findDeliverableCoach } from "@/lib/coaches";
+import { findDeliverableEmailUser } from "@/lib/coaches";
 
 export async function sendEmail({
   to,
@@ -39,6 +39,7 @@ export async function sendEmail({
   );
 }
 
+/** Deliver auth email only if the address belongs to a coach or parent. */
 export async function deliverToCoach({
   email,
   subject,
@@ -48,9 +49,9 @@ export async function deliverToCoach({
   subject: string;
   text: string;
 }) {
-  const coach = await findDeliverableCoach(email);
-  if (!coach) {
+  const recipient = await findDeliverableEmailUser(email);
+  if (!recipient) {
     return;
   }
-  await sendEmail({ to: coach.email, subject, text });
+  await sendEmail({ to: recipient.email, subject, text });
 }

@@ -1,6 +1,11 @@
 import type { Metadata } from "next";
 
-import { AddCoachForm, AddStudentForm, ResetPasswordForm } from "@/components/admin-forms";
+import {
+  AddCoachForm,
+  AddParentForm,
+  AddStudentForm,
+  ResetPasswordForm,
+} from "@/components/admin-forms";
 import { Separator } from "@/components/ui/separator";
 import {
   Table,
@@ -11,6 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { listPeople } from "@/lib/accounts";
+import { isStudent, roleLabel } from "@/lib/roles";
 import { requireCoach } from "@/lib/session";
 
 export const metadata: Metadata = {
@@ -42,14 +48,12 @@ export default async function AdminPage() {
               <TableRow key={person.id}>
                 <TableCell className="px-4 py-4 font-medium">{person.name}</TableCell>
                 <TableCell className="px-4 py-4">{person.username}</TableCell>
-                <TableCell className="px-4 py-4">
-                  {person.role === "coach" ? "Coach" : "Student"}
-                </TableCell>
+                <TableCell className="px-4 py-4">{roleLabel(person.role)}</TableCell>
                 <TableCell className="max-w-[18rem] truncate px-4 py-4" title={person.email ?? undefined}>
                   {person.email ?? "—"}
                 </TableCell>
                 <TableCell className="whitespace-nowrap px-4 py-4 text-right">
-                  {person.role === "student" ? (
+                  {isStudent(person.role) ? (
                     <ResetPasswordForm userId={person.id} name={person.name} />
                   ) : null}
                 </TableCell>
@@ -60,6 +64,8 @@ export default async function AdminPage() {
       </div>
       <Separator />
       <AddStudentForm />
+      <Separator />
+      <AddParentForm />
       <Separator />
       <AddCoachForm />
     </div>

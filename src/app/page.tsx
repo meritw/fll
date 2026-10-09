@@ -3,7 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
-import { getSession, needsPasswordChange } from "@/lib/session";
+import { getSession, postAuthPath } from "@/lib/session";
 
 export const metadata: Metadata = {
   title: {
@@ -30,7 +30,7 @@ export const metadata: Metadata = {
 export default async function HomePage() {
   const session = await getSession();
   if (session) {
-    redirect(needsPasswordChange(session.user) ? "/set-password" : "/home");
+    redirect(postAuthPath(session.user));
   }
 
   return (
