@@ -25,7 +25,7 @@ function loginErrorMessage(
   if (!error) {
     return fallback;
   }
-  // Credential failures stay kid-friendly; surface other auth/config failures.
+  // Credential failures stay friendly for team members; surface other auth/config failures.
   if (error.status === 401 || error.code === "INVALID_USERNAME_OR_PASSWORD") {
     return fallback;
   }

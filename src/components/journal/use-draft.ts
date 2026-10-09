@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 /**
- * A text value that is kept in localStorage while the kid types, so a closed tab
+ * A text value that is kept in localStorage while a team member types, so a closed tab
  * or dead battery doesn't lose it. Storage can throw (private mode), so every
  * access is guarded and the hook still works as plain state.
  */

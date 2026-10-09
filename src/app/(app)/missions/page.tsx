@@ -114,8 +114,8 @@ export default async function MissionsPage({ searchParams }: PageProps) {
         <p className="flex items-center gap-3 rounded-2xl bg-info-tint px-4 py-3 text-base text-info-ink">
           <ShieldCheck className="size-6 shrink-0" aria-hidden />
           <span>
-            <span className="font-semibold">Coach view.</span> You can add or remove kids on any
-            mission. Kids still choose their own and set status.
+            <span className="font-semibold">Coach view.</span> You can add or remove team members on any
+            mission. Team members still choose their own and set status.
           </span>
         </p>
       ) : null}

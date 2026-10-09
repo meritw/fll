@@ -7,7 +7,7 @@ import { cn } from "cn";
 import { SaveStatus, type SaveState } from "@/components/journal/save-status";
 import { toggleAttendance } from "@/lib/actions";
 
-/** Kids tap their own name when they arrive. Every tap saves on its own. */
+/** Team members tap their own name when they arrive. Every tap saves on its own. */
 export function AttendanceTab({
   meetingId,
   isToday,

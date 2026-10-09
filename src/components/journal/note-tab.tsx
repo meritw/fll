@@ -39,7 +39,7 @@ const KINDS: { kind: DayNoteKind; label: string; hint: string; placeholder: stri
   },
 ];
 
-/** Typed notes keep a Save button (kids expect one) plus a local draft so nothing is lost. */
+/** Typed notes keep a Save button (team members expect one) plus a local draft so nothing is lost. */
 export function NoteTab({
   meetingId,
   isToday,

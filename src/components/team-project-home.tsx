@@ -571,7 +571,7 @@ export function TeamProjectHome({
           </p>
           <h2 className="mt-1 text-xl font-semibold">Download full Git repo</h2>
           <p className="mt-2 max-w-2xl text-muted-foreground">
-            Full team project with Git history (.git + working tree). Kids use Step 1 for the
+            Full team project with Git history (.git + working tree). Team members use Step 1 for the
             Pybricks files zip only.
           </p>
           {!storageReady ? (

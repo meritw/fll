@@ -9,6 +9,7 @@ import {
   clearMustChangePassword,
   createAccount,
   createParentAccount,
+  hasPasswordLogin,
   resetStudentPassword,
   setDisplayName,
 } from "@/lib/accounts";
@@ -237,6 +238,52 @@ export async function completeForcedPasswordChange(input: {
   return { message: "Password saved." };
 }
 
+/** Signed-in users change their own password from the name menu. */
+export async function changeMyPassword(input: {
+  currentPassword: string;
+  newPassword: string;
+}): Promise<ActionState> {
+  const session = await requireUser();
+  if (!(await hasPasswordLogin(session.user.id))) {
+    return { error: "You sign in with an email link, so there's no password to change." };
+  }
+  if (!input.currentPassword) {
+    return { error: "Type your current password first." };
+  }
+  if (input.newPassword.length < 3) {
+    return { error: "Pick a password with at least 3 characters." };
+  }
+  if (input.newPassword === input.currentPassword) {
+    return { error: "Pick a new password that is different from the old one." };
+  }
+
+  const requestHeaders = await headers();
+  try {
+    // Keep this session as-is: revokeOtherSessions here would swap the session
+    // cookie mid-action, and the re-render would bounce through /login.
+    await auth.api.changePassword({
+      body: {
+        currentPassword: input.currentPassword,
+        newPassword: input.newPassword,
+        revokeOtherSessions: false,
+      },
+      headers: requestHeaders,
+    });
+  } catch (error) {
+    console.error(error);
+    return { error: "That current password isn't right. Try again." };
+  }
+
+  try {
+    // Sign out other devices without touching this one.
+    await auth.api.revokeOtherSessions({ headers: requestHeaders });
+  } catch (error) {
+    console.error("Could not sign out other devices", error);
+  }
+
+  return { message: "Password changed. Other devices are signed out." };
+}
+
 export async function completeSetDisplayName(input: {
   displayName: string;
 }): Promise<ActionState> {
@@ -256,7 +303,7 @@ function canWriteNotebook(role: string | null | undefined) {
   return isStudent(role) || isCoach(role);
 }
 
-const NOT_FOR_PARENTS = "Kids and coaches add this part.";
+const NOT_FOR_PARENTS = "Team members and coaches add this part.";
 
 function revalidateJournal(meetingId?: string | null) {
   revalidatePath("/journal");
@@ -439,7 +486,7 @@ export async function setMyMission(input: {
 }): Promise<AutoSaveResult> {
   const session = await requireUser();
   if (!isStudent(session.user.role)) {
-    return { error: "Students choose their own missions. Coaches can assign kids below." };
+    return { error: "Students choose their own missions. Coaches can assign team members below." };
   }
   const result = input.join
     ? await addMissionAssignment({

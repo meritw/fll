@@ -167,7 +167,7 @@ export async function listPeople() {
   }));
 }
 
-/** Kids only — attendance roster (excludes coaches, parents, and any non-student roles). */
+/** Team members (students) only — attendance roster (excludes coaches, parents, and any non-student roles). */
 export async function listStudents() {
   const rows = await getDb()
     .select({
@@ -218,6 +218,16 @@ export async function resetStudentPassword(userId: string, password: string) {
     .where(eq(user.id, userId));
   await getDb().delete(session).where(eq(session.userId, userId));
   return { ok: true as const };
+}
+
+/** True when the user signs in with a password (parents may only use email links). */
+export async function hasPasswordLogin(userId: string) {
+  const [row] = await getDb()
+    .select({ id: account.id })
+    .from(account)
+    .where(and(eq(account.userId, userId), eq(account.providerId, "credential")))
+    .limit(1);
+  return Boolean(row);
 }
 
 export async function clearMustChangePassword(userId: string) {

@@ -13,7 +13,8 @@ export const metadata: Metadata = {
 };
 
 /**
- * License panel sits above the guided zip workflow from the team-project home.
+ * The guided zip workflow comes first; the Pybricks license sits collapsed below it
+ * so team members aren't sidetracked while following the steps.
  * Parents do not use coding tools — send them to the Journal.
  */
 export default async function HomeWorkspacePage() {
@@ -29,11 +30,6 @@ export default async function HomeWorkspacePage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <PybricksLicensePanel
-        code={license?.code ?? null}
-        isCoachReserved={license?.seatKind === "coach_reserved"}
-        viewerName={session.user.name}
-      />
       <TeamProjectHome
         headSha={summary.project.headSha}
         storageReady={summary.storageReady}
@@ -41,6 +37,11 @@ export default async function HomeWorkspacePage() {
         isCoach={isCoach(session.user.role)}
         commits={summary.commits}
         recentUploads={summary.recentUploads}
+      />
+      <PybricksLicensePanel
+        code={license?.code ?? null}
+        isCoachReserved={license?.seatKind === "coach_reserved"}
+        viewerName={session.user.name}
       />
     </div>
   );

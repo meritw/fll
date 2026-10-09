@@ -209,7 +209,7 @@ export function MissionDetail({
 
         {coach ? (
           <div className="flex flex-col gap-2 rounded-2xl bg-info-soft p-4">
-            <span className="text-base font-semibold text-info-ink">Add a kid to this mission</span>
+            <span className="text-base font-semibold text-info-ink">Add a team member to this mission</span>
             {addable.length === 0 ? (
               <span className="text-base text-info-ink">Everyone is already on it.</span>
             ) : (
@@ -227,7 +227,7 @@ export function MissionDetail({
               </div>
             )}
             <span className="text-sm text-info-ink/80">
-              The number shows how many missions each kid already has.
+              The number shows how many missions each team member already has.
             </span>
           </div>
         ) : null}

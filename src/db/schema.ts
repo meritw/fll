@@ -28,7 +28,7 @@ export const mission = pgTable("mission", {
   }),
 });
 
-/** Kids working on a mission. Kids add themselves; coaches can add or remove anyone. */
+/** Team members working on a mission. They add themselves; coaches can add or remove anyone. */
 export const missionAssignment = pgTable(
   "mission_assignment",
   {
@@ -473,7 +473,7 @@ export const teamProjectCommit = pgTable(
   ],
 );
 
-/** One kid/coach upload attempt (merged, conflicted, or seeded). */
+/** One team member/coach upload attempt (merged, conflicted, or seeded). */
 export const teamProjectUpload = pgTable(
   "team_project_upload",
   {
