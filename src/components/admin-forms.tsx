@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   addCoach,
   addParent,
@@ -41,27 +42,31 @@ export function AddParentForm() {
 
   return (
     <form action={formAction} className="flex flex-col gap-4">
-      <h2 className="text-2xl font-semibold">Add a parent</h2>
+      <h2 className="text-2xl font-semibold">Invite parents</h2>
       <p className="text-muted-foreground">
-        Enter their email only. They sign in with a magic link or code, then choose their display
-        name on first visit.
+        Paste one email or a whole list. Names in{" "}
+        <span className="font-medium text-foreground">Name &lt;email&gt;</span> lines are ignored —
+        parents choose their display name when they first sign in (magic link or code).
       </p>
       <div className="flex flex-col gap-2">
-        <Label htmlFor="parent-email" className="text-lg">
-          Email
+        <Label htmlFor="parent-emails" className="text-lg">
+          Emails
         </Label>
-        <Input
-          id="parent-email"
-          name="email"
-          type="email"
+        <Textarea
+          id="parent-emails"
+          name="emails"
           autoComplete="off"
-          className={fieldClass}
           required
+          rows={8}
+          placeholder={
+            "Bob Wilkinson <parent@example.com>,\nLarry Lewis <larry@example.com>,\nparent@school.edu"
+          }
+          className="min-h-40 resize-y px-3 py-3 text-lg md:text-lg"
         />
       </div>
       <FormNotice state={state} />
       <Button type="submit" size="xl" disabled={pending}>
-        Invite parent
+        {pending ? "Inviting…" : "Invite parents"}
       </Button>
     </form>
   );

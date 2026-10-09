@@ -17,6 +17,7 @@ import { findDeliverableEmailUser } from "@/lib/coaches";
 import { addSeasonEvent, createJournalEntry, deleteSeasonEvent } from "@/lib/journal";
 import { attachMeetingMedia, updateMediaCaption } from "@/lib/media";
 import { VAGUE_EMAIL_MESSAGE } from "@/lib/messages";
+import { parseParentInviteList } from "@/lib/parent-invites";
 import {
   addMeetingNote,
   ensureTodayMeeting,
@@ -175,14 +176,62 @@ export async function addCoach(_prev: ActionState, formData: FormData): Promise<
 
 export async function addParent(_prev: ActionState, formData: FormData): Promise<ActionState> {
   await requireCoach();
-  const result = await createParentAccount(String(formData.get("email") ?? ""));
-  if ("error" in result) {
-    return result;
+  const pasted = String(formData.get("emails") ?? formData.get("email") ?? "");
+  const { emails, invalid } = parseParentInviteList(pasted);
+
+  if (emails.length === 0) {
+    if (invalid.length > 0) {
+      return {
+        error: `No valid emails found. Check: ${invalid.slice(0, 5).join("; ")}${
+          invalid.length > 5 ? "…" : ""
+        }`,
+      };
+    }
+    return { error: "Paste one or more parent emails." };
   }
+
+  const invited: string[] = [];
+  const failed: string[] = [];
+  for (const email of emails) {
+    const result = await createParentAccount(email);
+    if ("error" in result) {
+      failed.push(`${email} (${result.error})`);
+    } else {
+      invited.push(email);
+    }
+  }
+
   revalidatePath("/admin");
-  return {
-    message: "Parent invited. They sign in with email link or code, then choose their name.",
-  };
+
+  if (invited.length === 0) {
+    return {
+      error: `Could not invite any parents. ${failed.slice(0, 8).join("; ")}${
+        failed.length > 8 ? "…" : ""
+      }`,
+    };
+  }
+
+  const parts = [
+    invited.length === 1
+      ? "1 parent invited."
+      : `${invited.length} parents invited.`,
+    "They sign in with an email link or code, then choose their name.",
+  ];
+  if (failed.length > 0) {
+    parts.push(
+      `Skipped ${failed.length}: ${failed.slice(0, 6).join("; ")}${
+        failed.length > 6 ? "…" : ""
+      }`,
+    );
+  }
+  if (invalid.length > 0) {
+    parts.push(
+      `Ignored ${invalid.length} invalid: ${invalid.slice(0, 4).join("; ")}${
+        invalid.length > 4 ? "…" : ""
+      }`,
+    );
+  }
+  return { message: parts.join(" ") };
 }
 
 export async function setStudentPassword(
