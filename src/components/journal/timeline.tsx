@@ -61,7 +61,7 @@ export function TimelineRow({
   children: React.ReactNode;
 }) {
   return (
-    <li className="flex gap-3 pb-7 sm:gap-4">
+    <li className="flex gap-3 pb-7 [content-visibility:auto] [contain-intrinsic-size:auto_280px] sm:gap-4">
       <DateRail date={date} last={last} />
       <div className="min-w-0 flex-1">{children}</div>
     </li>
@@ -292,19 +292,26 @@ export function SessionCard({
 export function SessionSummaryCard({
   record,
   studentCount,
+  /** Prefer explicit counts so the parent can omit heavy media/note arrays from the RSC payload. */
+  mediaCount,
+  noteCount,
 }: {
   record: SessionRecord;
   studentCount: number;
+  mediaCount?: number;
+  noteCount?: number;
 }) {
   const counts = sessionCounts(record);
+  const notes = noteCount ?? counts.notes;
+  const media = mediaCount ?? counts.media;
   const summary =
     record.progress[0]?.body ?? record.lessons[0]?.body ?? record.otherNotes[0]?.body ?? null;
   const facts = [
     record.attendees.length > 0
       ? `${record.attendees.length} of ${studentCount || record.attendees.length} here`
       : null,
-    counts.notes > 0 ? plural(counts.notes, "note") : null,
-    counts.media > 0 ? plural(counts.media, "photo") : null,
+    notes > 0 ? plural(notes, "note") : null,
+    media > 0 ? plural(media, "photo") : null,
     record.robot.length > 0 ? plural(record.robot.length, "robot update") : null,
   ].filter(Boolean);
   const headline = sessionHeadline(record);

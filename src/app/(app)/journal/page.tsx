@@ -81,6 +81,33 @@ function keep(item: Item, show: Filter) {
   return false;
 }
 
+function sessionNoteCount(record: SessionRecord) {
+  return (
+    record.progress.length +
+    record.actions.length +
+    record.lessons.length +
+    record.otherNotes.length +
+    record.missionNotes.length
+  );
+}
+
+/** Drop media and extra note bodies from collapsed timeline cards (keeps RSC payload smaller on phones). */
+function summarySessionRecord(record: SessionRecord): SessionRecord {
+  const teaser = record.progress[0] ?? record.lessons[0] ?? record.otherNotes[0] ?? null;
+  return {
+    ...record,
+    media: [],
+    actions: [],
+    missionNotes: [],
+    progress: teaser && record.progress[0] ? [record.progress[0]] : [],
+    lessons: teaser && !record.progress[0] && record.lessons[0] ? [record.lessons[0]] : [],
+    otherNotes:
+      teaser && !record.progress[0] && !record.lessons[0] && record.otherNotes[0]
+        ? [record.otherNotes[0]]
+        : [],
+  };
+}
+
 type PageProps = {
   searchParams: Promise<{ show?: string }>;
 };
@@ -359,7 +386,12 @@ export default async function JournalPage({ searchParams }: PageProps) {
                       {expanded ? (
                         <SessionCard record={item.record} students={students} mediaLimit={3} />
                       ) : (
-                        <SessionSummaryCard record={item.record} studentCount={students.length} />
+                        <SessionSummaryCard
+                          record={summarySessionRecord(item.record)}
+                          studentCount={students.length}
+                          mediaCount={item.record.media.length}
+                          noteCount={sessionNoteCount(item.record)}
+                        />
                       )}
                     </TimelineRow>
                   );

@@ -11,10 +11,11 @@ import {
   type MediaContentType,
 } from "@/lib/storage";
 
-export async function listGalleryMedia(limit = 100) {
+export async function listGalleryMedia(limit = 100, offset = 0) {
   const rows = await getDb().query.meetingMedia.findMany({
     orderBy: (table, { desc: orderDesc }) => [orderDesc(table.createdAt)],
     limit,
+    offset,
     with: {
       uploader: { columns: { id: true, name: true } },
       meeting: {
