@@ -13,8 +13,10 @@ export const user = pgTable("user", {
     .$onUpdate(() => /* @__PURE__ */ new Date())
     .notNull(),
   username: text("username").unique(),
+  // student | coach | parent (see lib/roles.ts + user_role_check)
   role: text("role").default("student").notNull(),
   mustChangePassword: boolean("must_change_password").default(false).notNull(),
+  mustSetDisplayName: boolean("must_set_display_name").default(false).notNull(),
 });
 
 export const session = pgTable(

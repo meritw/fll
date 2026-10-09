@@ -31,6 +31,12 @@ export async function POST(request: Request) {
       { status: 403 },
     );
   }
+  if (session.user.mustSetDisplayName) {
+    return NextResponse.json(
+      { error: "Choose your display name before uploading." },
+      { status: 403 },
+    );
+  }
 
   if (!storageConfig()) {
     return NextResponse.json(

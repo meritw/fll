@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { auth } from "@/lib/auth";
+import { isParent } from "@/lib/roles";
 import {
   MAX_TEAM_PROJECT_BYTES,
   objectKeyForTeamProjectUpload,
@@ -24,6 +25,18 @@ export async function POST(request: Request) {
   if (session.user.mustChangePassword) {
     return NextResponse.json(
       { error: "Set a new password before uploading." },
+      { status: 403 },
+    );
+  }
+  if (session.user.mustSetDisplayName) {
+    return NextResponse.json(
+      { error: "Choose your display name before uploading." },
+      { status: 403 },
+    );
+  }
+  if (isParent(session.user.role)) {
+    return NextResponse.json(
+      { error: "Parents cannot upload team project code." },
       { status: 403 },
     );
   }

@@ -1,5 +1,5 @@
 export const VAGUE_EMAIL_MESSAGE =
-  "If that email belongs to a coach, we sent a message. Check the inbox.";
+  "If that email belongs to a coach or parent, we sent a message. Check the inbox.";
 
 export const BAD_PASSWORD_MESSAGE =
   "That password is not right. Ask a coach for help.";

@@ -21,6 +21,9 @@ export const authClient = createAuthClient({
         mustChangePassword: {
           type: "boolean",
         },
+        mustSetDisplayName: {
+          type: "boolean",
+        },
       },
     }),
   ],

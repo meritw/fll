@@ -14,7 +14,13 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { addCoach, addStudent, setStudentPassword, type ActionState } from "@/lib/actions";
+import {
+  addCoach,
+  addParent,
+  addStudent,
+  setStudentPassword,
+  type ActionState,
+} from "@/lib/actions";
 
 const fieldClass = "h-12 px-3 text-lg md:text-lg";
 const initialState: ActionState = {};
@@ -27,6 +33,37 @@ export function AddStudentForm() {
       action={addStudent}
       includeEmail={false}
     />
+  );
+}
+
+export function AddParentForm() {
+  const [state, formAction, pending] = useActionState(addParent, initialState);
+
+  return (
+    <form action={formAction} className="flex flex-col gap-4">
+      <h2 className="text-2xl font-semibold">Add a parent</h2>
+      <p className="text-muted-foreground">
+        Enter their email only. They sign in with a magic link or code, then choose their display
+        name on first visit.
+      </p>
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="parent-email" className="text-lg">
+          Email
+        </Label>
+        <Input
+          id="parent-email"
+          name="email"
+          type="email"
+          autoComplete="off"
+          className={fieldClass}
+          required
+        />
+      </div>
+      <FormNotice state={state} />
+      <Button type="submit" size="xl" disabled={pending}>
+        Invite parent
+      </Button>
+    </form>
   );
 }
 

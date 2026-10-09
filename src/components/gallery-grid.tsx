@@ -45,6 +45,7 @@ export function GalleryGrid({ items }: { items: GalleryItem[] }) {
               <video
                 src={`/media/${item.id}`}
                 controls
+                playsInline
                 preload="metadata"
                 className="aspect-[4/3] w-full bg-black object-contain"
               />
