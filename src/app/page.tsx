@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Zap } from "lucide-react";
 
+import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { getSession, postAuthPath } from "@/lib/session";
 
@@ -34,55 +36,69 @@ export default async function HomePage() {
   }
 
   return (
-    <div className="relative flex min-h-full flex-1 flex-col overflow-hidden">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top,_oklch(0.94_0.04_55)_0%,_transparent_55%),linear-gradient(180deg,_oklch(0.985_0.006_95)_0%,_oklch(0.97_0.01_70)_100%)]"
-      />
-
-      <header className="border-b border-border/70 bg-card/70 backdrop-blur-sm">
-        <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-4 px-4 py-4">
-          <p className="text-xl font-semibold tracking-tight sm:text-2xl">Rolling Sparks</p>
-          <Button asChild size="lg" variant="outline">
-            <Link href="/login">Team sign in</Link>
-          </Button>
+    <div className="flex min-h-full flex-1 flex-col">
+      <header className="bg-header text-white">
+        <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3 px-4 py-3">
+          <p className="flex items-center gap-2 text-xl font-semibold sm:text-2xl">
+            <Zap className="hidden size-6 sm:block" aria-hidden />
+            Rolling Sparks
+          </p>
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+            <Link
+              href="/login"
+              className="inline-flex min-h-11 items-center rounded-lg px-3 font-medium hover:bg-white/10 focus-visible:ring-3 focus-visible:ring-white/60 focus-visible:outline-none"
+            >
+              Team sign in
+            </Link>
+          </div>
         </div>
       </header>
 
-      <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-4 py-12 sm:py-16">
-        <section className="max-w-3xl">
-          <p className="text-sm font-medium tracking-wide text-primary uppercase">
-            FIRST LEGO League Challenge · Team 55900
-          </p>
-          <h1 className="mt-3 text-4xl font-semibold tracking-tight sm:text-5xl">
-            Rolling Sparks
-          </h1>
-          <p className="mt-3 text-xl text-muted-foreground">
-            Penfield Central School District
-          </p>
-          <p className="mt-6 max-w-2xl text-lg leading-relaxed text-foreground/90">
-            This is the team website for Rolling Sparks, an educational FIRST LEGO
-            League Challenge robotics team. Members use it for Spike Prime robot
-            programs, meeting notes and engineering notebook work, and shared team
-            learning resources.
-          </p>
-          <div className="mt-8 flex flex-wrap gap-3">
-            <Button asChild size="xl">
-              <Link href="/login">Sign in to team workspace</Link>
-            </Button>
-            <Button asChild size="xl" variant="outline">
-              <a
-                href="https://www.firstinspires.org/programs/fll/"
-                rel="noopener noreferrer"
-                target="_blank"
+      {/* The hero continues the navy header band. */}
+      <section className="border-b border-header bg-header text-white dark:border-line">
+        <div className="mx-auto w-full max-w-5xl px-4 pt-8 pb-14 sm:pt-12 sm:pb-20">
+          <div className="max-w-3xl">
+            <p className="font-mono text-sm tracking-[0.08em] text-milestone-accent uppercase">
+              FIRST LEGO League Challenge · Team 55900
+            </p>
+            <h1 className="mt-3 text-4xl font-bold tracking-tight sm:text-6xl">Rolling Sparks</h1>
+            <p className="mt-3 text-xl text-milestone-soft">Penfield Central School District</p>
+            <p className="mt-6 max-w-2xl text-lg leading-relaxed text-white/90">
+              This is the team website for Rolling Sparks, an educational FIRST LEGO
+              League Challenge robotics team. Members use it for Spike Prime robot
+              programs, meeting notes and engineering notebook work, and shared team
+              learning resources.
+            </p>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <Button
+                asChild
+                size="xl"
+                className="bg-white text-header hover:bg-white/90 focus-visible:ring-white/60"
               >
-                About FLL Challenge
-              </a>
-            </Button>
+                <Link href="/login">Sign in to team workspace</Link>
+              </Button>
+              <Button
+                asChild
+                size="xl"
+                variant="outline"
+                className="border-white/40 bg-transparent text-white hover:bg-white/10 hover:text-white focus-visible:ring-white/60 dark:border-white/40 dark:bg-transparent dark:hover:bg-white/10"
+              >
+                <a
+                  href="https://www.firstinspires.org/programs/fll/"
+                  rel="noopener noreferrer"
+                  target="_blank"
+                >
+                  About FLL Challenge
+                </a>
+              </Button>
+            </div>
           </div>
-        </section>
+        </div>
+      </section>
 
-        <section className="mt-14 max-w-3xl border-t border-border/80 pt-10">
+      <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-4 py-4 sm:py-6">
+        <section className="mt-6 max-w-3xl pt-6">
           <h2 className="text-2xl font-semibold tracking-tight">What you&apos;ll find here</h2>
           <p className="mt-3 text-lg leading-relaxed text-muted-foreground">
             After signing in, teammates can open robot program files, review meeting
@@ -92,11 +108,11 @@ export default async function HomePage() {
           </p>
         </section>
 
-        <section className="mt-12 max-w-3xl border-t border-border/80 pt-10">
+        <section className="mt-12 max-w-3xl border-t border-line pt-10">
           <h2 className="text-2xl font-semibold tracking-tight">About FIRST and FLL</h2>
           <p className="mt-3 text-lg leading-relaxed text-muted-foreground">
             <a
-              className="font-medium text-foreground underline-offset-4 hover:underline"
+              className="font-medium text-primary underline-offset-4 hover:underline"
               href="https://www.firstinspires.org/"
               rel="noopener noreferrer"
               target="_blank"
@@ -106,7 +122,7 @@ export default async function HomePage() {
             (For Inspiration and Recognition of Science and Technology) runs youth
             STEM programs worldwide.{" "}
             <a
-              className="font-medium text-foreground underline-offset-4 hover:underline"
+              className="font-medium text-primary underline-offset-4 hover:underline"
               href="https://www.firstinspires.org/programs/fll/"
               rel="noopener noreferrer"
               target="_blank"
@@ -121,7 +137,7 @@ export default async function HomePage() {
           <ul className="mt-5 list-disc space-y-2 pl-6 text-lg text-muted-foreground">
             <li>
               <a
-                className="font-medium text-foreground underline-offset-4 hover:underline"
+                className="font-medium text-primary underline-offset-4 hover:underline"
                 href="https://www.firstinspires.org/"
                 rel="noopener noreferrer"
                 target="_blank"
@@ -133,7 +149,7 @@ export default async function HomePage() {
             </li>
             <li>
               <a
-                className="font-medium text-foreground underline-offset-4 hover:underline"
+                className="font-medium text-primary underline-offset-4 hover:underline"
                 href="https://www.firstinspires.org/programs/fll/"
                 rel="noopener noreferrer"
                 target="_blank"
@@ -146,7 +162,7 @@ export default async function HomePage() {
           </ul>
         </section>
 
-        <section className="mt-12 max-w-3xl border-t border-border/80 pt-10 pb-4">
+        <section className="mt-12 max-w-3xl border-t border-line pt-10 pb-4">
           <h2 className="text-2xl font-semibold tracking-tight">Team details</h2>
           <dl className="mt-4 grid gap-3 text-lg sm:grid-cols-[10rem_1fr]">
             <dt className="font-medium text-foreground">Team name</dt>
@@ -161,10 +177,10 @@ export default async function HomePage() {
         </section>
       </main>
 
-      <footer className="border-t border-border/70 bg-card/50">
+      <footer className="border-t border-line bg-card">
         <div className="mx-auto flex w-full max-w-5xl flex-col gap-2 px-4 py-6 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
           <p>Rolling Sparks · FLL Challenge team 55900 · Penfield CSD</p>
-          <Link className="font-medium text-foreground underline-offset-4 hover:underline" href="/login">
+          <Link className="font-medium text-primary underline-offset-4 hover:underline" href="/login">
             Team sign in
           </Link>
         </div>
