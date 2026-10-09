@@ -3,6 +3,12 @@ import { cn } from "cn";
 
 import { SeasonDateForm } from "@/components/journal/season-date-form";
 import { removeSeasonDate } from "@/lib/actions";
+import {
+  daySpan,
+  layoutSeasonMarks,
+  SEASON_END_DAY,
+  SEASON_START_DAY,
+} from "@/lib/season";
 import { parseTeamDateKey, TEAM_TIME_ZONE, zonedDateTime } from "@/lib/timezone";
 
 export type SeasonPoint = {
@@ -36,6 +42,13 @@ function choosePoints(points: SeasonPoint[], today: string) {
   return [...past.slice(-(MAX_POINTS - future.length)), ...future];
 }
 
+function progressLabel(progress: number) {
+  const pct = Math.round(progress * 100);
+  if (pct <= 0) return "Season just starting";
+  if (pct >= 100) return "Season complete";
+  return `${pct}% through the season`;
+}
+
 export function SeasonCard({
   points,
   today,
@@ -48,83 +61,111 @@ export function SeasonCard({
   coach: boolean;
 }) {
   const chosen = choosePoints(points, today);
-  const hereIndex = chosen.filter((point) => point.dayKey <= today).length;
-  const items: (SeasonPoint | { key: "here" })[] = [
-    ...chosen.slice(0, hereIndex),
-    { key: "here" },
-    ...chosen.slice(hereIndex),
-  ];
-  // Each point sits at the start of an equal column, so point i is at i / n of the width.
-  const trackEnd = (items.length - 1) / items.length;
-  const fillEnd = hereIndex / items.length;
+  const layout = layoutSeasonMarks(
+    chosen.map((point) => point.dayKey),
+    today,
+  );
+  const byDay = new Map<string, SeasonPoint[]>();
+  for (const point of chosen) {
+    const list = byDay.get(point.dayKey) ?? [];
+    list.push(point);
+    byDay.set(point.dayKey, list);
+  }
   const events = points.filter((point) => point.kind === "event");
+  const axisDays = Math.max(1, daySpan(layout.axisStart, layout.axisEnd));
+  // ~10px per calendar day so a week gap is visibly wider than a 1-day gap when scrolling.
+  const trackMinWidth = Math.max(560, Math.round(axisDays * 10));
 
   return (
     <section
       aria-labelledby="season-heading"
       className="flex flex-col gap-5 rounded-3xl bg-card p-5 ring-1 ring-line sm:p-6"
     >
-      <h2 id="season-heading" className="text-xl font-semibold">
-        Season so far
-      </h2>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 id="season-heading" className="text-xl font-semibold">
+          Season so far
+        </h2>
+        <p className="font-mono text-sm text-primary" aria-live="polite">
+          {progressLabel(layout.progress)}
+        </p>
+      </div>
 
       <div className="overflow-x-auto pb-1">
-        <div className="relative min-w-[560px] pt-1.5">
-          <div
-            aria-hidden
-            className="absolute top-4 left-2.5 h-1 rounded bg-status-none"
-            style={{ width: `calc(100% * ${trackEnd})` }}
-          />
-          <div
-            aria-hidden
-            className="absolute top-4 left-2.5 h-1 rounded bg-primary"
-            style={{ width: `calc(100% * ${fillEnd})` }}
-          />
-          <ol
-            className="relative grid gap-2"
-            style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}
-          >
-            {items.map((item, index) => {
-              if (item.key === "here") {
-                return (
-                  <li key="here" className="flex min-w-0 flex-col gap-1.5">
+        <div className="relative pt-1.5" style={{ minWidth: trackMinWidth }}>
+          <div className="relative mx-3 h-[7.5rem]">
+            <div
+              aria-hidden
+              className="absolute top-4 right-0 left-0 h-1 rounded bg-status-none"
+            />
+            <div
+              aria-hidden
+              className="absolute top-4 left-0 h-1 rounded bg-primary"
+              style={{ width: `${layout.todayLeft * 100}%` }}
+            />
+
+            {layout.marks.map((mark) => {
+              const dayPoints = byDay.get(mark.dayKey) ?? [];
+              const isToday = mark.dayKey === today;
+              const past = mark.dayKey < today;
+              return (
+                <div
+                  key={mark.key}
+                  className="absolute top-0 flex w-[5.5rem] -translate-x-1/2 flex-col items-center gap-1.5 text-center"
+                  style={{ left: `${mark.left * 100}%` }}
+                >
+                  {isToday ? (
                     <span className="size-5 rounded-full border-4 border-primary bg-card shadow-[0_0_0_4px_var(--color-brand-tint)]" />
-                    <span className="font-mono text-[13px] font-semibold text-primary">
-                      {labelFor(today)}
-                    </span>
+                  ) : (
+                    <span
+                      className={cn(
+                        "size-5 rounded-full",
+                        past
+                          ? "bg-primary shadow-[0_0_0_4px_var(--color-card)]"
+                          : "border-2 border-dashed border-foreground/35 bg-card",
+                      )}
+                    />
+                  )}
+                  <span
+                    className={cn(
+                      "font-mono text-[13px]",
+                      isToday ? "font-semibold text-primary" : "text-muted-foreground",
+                    )}
+                  >
+                    {labelFor(mark.dayKey)}
+                  </span>
+                  {isToday ? (
                     <span className="text-base leading-tight font-semibold text-primary">
                       We are here
                     </span>
-                  </li>
-                );
-              }
-              const point = item as SeasonPoint;
-              const past = index < hereIndex;
-              return (
-                <li key={point.key} className="flex min-w-0 flex-col gap-1.5">
-                  <span
-                    className={cn(
-                      "size-5 rounded-full",
-                      past
-                        ? "bg-primary shadow-[0_0_0_4px_var(--color-card)]"
-                        : "border-2 border-dashed border-foreground/35 bg-card",
-                    )}
-                  />
-                  <span className="font-mono text-[13px] text-muted-foreground">
-                    {labelFor(point.dayKey)}
-                  </span>
-                  <span
-                    className={cn(
-                      "text-base leading-tight",
-                      past ? "font-semibold" : "font-medium text-muted-foreground",
-                    )}
-                  >
-                    {point.label}
-                  </span>
-                </li>
+                  ) : null}
+                  {dayPoints.map((point) => (
+                    <span
+                      key={point.key}
+                      className={cn(
+                        "line-clamp-2 text-base leading-tight",
+                        past || isToday
+                          ? "font-semibold"
+                          : "font-medium text-muted-foreground",
+                      )}
+                    >
+                      {point.label}
+                    </span>
+                  ))}
+                </div>
               );
             })}
-          </ol>
+          </div>
+
+          <div className="mt-1 flex justify-between gap-3 px-1 font-mono text-[11px] tracking-[0.06em] text-muted-foreground uppercase">
+            <span>
+              Start · {labelFor(layout.axisStart)}
+              {layout.axisStart === SEASON_START_DAY ? "" : " (extended)"}
+            </span>
+            <span>
+              End · {labelFor(layout.axisEnd)}
+              {layout.axisEnd === SEASON_END_DAY ? "" : " (extended)"}
+            </span>
+          </div>
         </div>
       </div>
       {points.length === 0 ? (
