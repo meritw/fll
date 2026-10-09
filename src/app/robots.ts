@@ -11,7 +11,7 @@ export default function robots(): MetadataRoute.Robots {
         "/home",
         "/conflicts",
         "/programs",
-        "/meetings",
+        "/missions",
         "/journal",
         "/gallery",
         "/media/",

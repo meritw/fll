@@ -1,47 +1,58 @@
+import { Menu } from "lucide-react";
 import Link from "next/link";
 
+import { MobileMenu, NavLink } from "@/components/nav-link";
 import { SignOutButton } from "@/components/sign-out-button";
 import { isCoach, isParent } from "@/lib/roles";
 
 export function Header({ name, role }: { name: string; role: string }) {
   const coach = isCoach(role);
   const parent = isParent(role);
-  const homeHref = parent ? "/meetings" : "/home";
+  const homeHref = parent ? "/journal" : "/home";
+
+  const links = [
+    ...(parent ? [] : [{ href: "/home", label: "Home" }]),
+    { href: "/missions", label: "Missions" },
+    { href: "/journal", label: "Journal" },
+    { href: "/gallery", label: "Gallery" },
+    ...(coach
+      ? [
+          { href: "/conflicts", label: "Conflicts" },
+          { href: "/admin", label: "People" },
+        ]
+      : []),
+  ];
 
   return (
-    <header className="border-b bg-card">
-      <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-4">
+    <header className="border-b border-line bg-card">
+      <div className="mx-auto flex w-full max-w-[1200px] items-center justify-between gap-4 px-4 py-3">
         <Link href={homeHref} className="text-2xl font-semibold">
           Rolling Sparks
         </Link>
-        <nav className="flex flex-wrap items-center justify-end gap-3">
-          <span className="hidden sm:inline">{name}</span>
-          {!parent ? (
-            <Link href="/home" className="font-medium underline-offset-4 hover:underline">
-              Home
-            </Link>
-          ) : null}
-          {coach ? (
-            <Link href="/conflicts" className="font-medium underline-offset-4 hover:underline">
-              Conflicts
-            </Link>
-          ) : null}
-          <Link href="/meetings" className="font-medium underline-offset-4 hover:underline">
-            Meetings
-          </Link>
-          <Link href="/journal" className="font-medium underline-offset-4 hover:underline">
-            Journal
-          </Link>
-          <Link href="/gallery" className="font-medium underline-offset-4 hover:underline">
-            Gallery
-          </Link>
-          {coach ? (
-            <Link href="/admin" className="font-medium underline-offset-4 hover:underline">
-              People
-            </Link>
-          ) : null}
-          <SignOutButton />
+
+        <nav aria-label="Main" className="hidden items-center gap-1 md:flex">
+          {links.map((link) => (
+            <NavLink key={link.href} href={link.href}>
+              {link.label}
+            </NavLink>
+          ))}
+          <span className="ml-3 hidden max-w-40 truncate text-ink-muted lg:inline">{name}</span>
+          <span className="ml-2">
+            <SignOutButton />
+          </span>
         </nav>
+
+        <MobileMenu label={<Menu className="size-6" aria-label="Open menu" />}>
+          <p className="truncate px-3 py-1 text-base text-ink-muted">{name}</p>
+          {links.map((link) => (
+            <NavLink key={link.href} href={link.href}>
+              {link.label}
+            </NavLink>
+          ))}
+          <div className="px-1 pt-2">
+            <SignOutButton />
+          </div>
+        </MobileMenu>
       </div>
     </header>
   );

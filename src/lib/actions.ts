@@ -13,22 +13,33 @@ import {
   setDisplayName,
 } from "@/lib/accounts";
 import { findDeliverableEmailUser } from "@/lib/coaches";
-import { createJournalEntry } from "@/lib/journal";
-import { attachMeetingMedia } from "@/lib/media";
+import {
+  addSeasonEvent,
+  createJournalEntry,
+  deleteSeasonEvent,
+} from "@/lib/journal";
+import { attachMeetingMedia, updateMediaCaption } from "@/lib/media";
 import { VAGUE_EMAIL_MESSAGE } from "@/lib/messages";
 import {
   addMeetingNote,
-  createOneOffMeeting,
-  saveAttendance,
+  ensureTodayMeeting,
+  setAttendance,
   updateMeetingSummary,
 } from "@/lib/meetings";
-import { isNotebookKind } from "@/lib/notebook";
+import { isMissionStatus } from "@/lib/mission-status";
+import {
+  addMissionAssignment,
+  addMissionNote,
+  removeMissionAssignment,
+  setMissionStatus,
+} from "@/lib/missions-board";
+import { isNotebookKind, type NotebookKind } from "@/lib/notebook";
 import {
   addProgramVersion,
   createProgram,
   renameProgram,
 } from "@/lib/programs";
-import { isParent } from "@/lib/roles";
+import { isCoach, isParent, isStudent } from "@/lib/roles";
 import { requireCoach, requireUser } from "@/lib/session";
 
 export async function requestMagicLink(email: string) {
@@ -56,7 +67,7 @@ async function sendAdultEmail(email: string, kind: "link" | "code" | "reset") {
       const callbackURL = adult.mustSetDisplayName
         ? "/set-name"
         : isParent(adult.role)
-          ? "/meetings"
+          ? "/journal"
           : "/home";
       if (kind === "link") {
         await auth.api.signInMagicLink({
@@ -244,82 +255,142 @@ export async function completeSetDisplayName(input: {
   return { message: "Name saved." };
 }
 
-export async function addOneOffMeeting(
-  _prev: ActionState,
-  formData: FormData,
-): Promise<ActionState> {
-  const session = await requireUser();
-  const startHourRaw = String(formData.get("startHour") ?? "18");
-  const endHourRaw = String(formData.get("endHour") ?? "20");
-  const sessionRaw = String(formData.get("sessionNumber") ?? "").trim();
-  const result = await createOneOffMeeting({
-    userId: session.user.id,
-    dateKey: String(formData.get("dateKey") ?? ""),
-    title: String(formData.get("title") ?? ""),
-    summary: String(formData.get("summary") ?? ""),
-    startHour: Number(startHourRaw),
-    endHour: Number(endHourRaw),
-    sessionNumber: sessionRaw ? Number(sessionRaw) : undefined,
-  });
-  if ("error" in result) {
-    return result;
-  }
-  revalidatePath("/meetings");
+function revalidateJournal(meetingId?: string | null) {
   revalidatePath("/journal");
-  revalidatePath(`/meetings/${result.id}`);
-  redirect(`/meetings/${result.id}`);
+  revalidatePath("/journal/today");
+  if (meetingId) {
+    revalidatePath(`/journal/${meetingId}`);
+  }
+  revalidatePath("/missions");
+  revalidatePath("/gallery");
 }
 
-export async function recordMeetingAttendance(
-  _prev: ActionState,
-  formData: FormData,
-): Promise<ActionState> {
+export async function startTodayMeeting() {
   const session = await requireUser();
-  const meetingId = String(formData.get("meetingId") ?? "");
-  const attendeeIds = formData.getAll("attendeeIds").map(String);
-  const result = await saveAttendance({
+  if (isParent(session.user.role)) {
+    return { error: "Parents can't start a meeting." };
+  }
+  const result = await ensureTodayMeeting(session.user.id);
+  revalidateJournal(result.id);
+  redirect(`/journal/${result.id}`);
+}
+
+export async function ensureTodayMeetingId() {
+  const session = await requireUser();
+  if (isParent(session.user.role)) {
+    return { error: "Pick a meeting day before uploading." };
+  }
+  const result = await ensureTodayMeeting(session.user.id);
+  revalidateJournal(result.id);
+  return { id: result.id };
+}
+
+export async function toggleAttendance(input: {
+  meetingId: string | null;
+  userId: string;
+  present: boolean;
+}) {
+  const session = await requireUser();
+  if (isParent(session.user.role)) {
+    return { error: "Parents can't mark attendance." };
+  }
+
+  let meetingId = input.meetingId;
+  if (!meetingId) {
+    const today = await ensureTodayMeeting(session.user.id);
+    meetingId = today.id;
+  }
+
+  const result = await setAttendance({
     meetingId,
+    userId: input.userId,
+    present: input.present,
     recordedById: session.user.id,
-    attendeeIds,
   });
   if ("error" in result) {
     return result;
   }
-  revalidatePath("/meetings");
-  revalidatePath("/journal");
-  revalidatePath(`/meetings/${meetingId}`);
-  return { message: "Attendance saved." };
+  revalidateJournal(meetingId);
+  return {
+    ok: true as const,
+    meetingId,
+    userName: result.userName,
+    present: result.present,
+  };
 }
 
-export async function postMeetingNote(
-  _prev: ActionState,
-  formData: FormData,
-): Promise<ActionState> {
+export async function postDayNote(input: {
+  meetingId: string | null;
+  kind: string;
+  body: string;
+  milestone?: boolean;
+}) {
   const session = await requireUser();
-  const meetingId = String(formData.get("meetingId") ?? "");
-  const kindRaw = String(formData.get("kind") ?? "progress");
-  if (!isNotebookKind(kindRaw)) {
+  const milestone = Boolean(input.milestone);
+  const kind = input.kind;
+  const fromHome = input.meetingId === "home";
+  const isOther = kind === "other" || milestone;
+
+  if (isParent(session.user.role) && !isOther && !fromHome) {
+    return { error: "Parents can write Other notes or notes from home." };
+  }
+
+  if (isOther || fromHome) {
+    let relatedMeetingId: string | null = null;
+    if (!fromHome) {
+      if (!input.meetingId) {
+        if (isParent(session.user.role)) {
+          return { error: "Pick a meeting day, or write a note from home." };
+        }
+        const today = await ensureTodayMeeting(session.user.id);
+        relatedMeetingId = today.id;
+      } else {
+        relatedMeetingId = input.meetingId;
+      }
+    }
+    const result = await createJournalEntry({
+      authorId: session.user.id,
+      body: input.body,
+      relatedMeetingId,
+      milestone: milestone && !isParent(session.user.role),
+    });
+    if ("error" in result) {
+      return result;
+    }
+    revalidateJournal(relatedMeetingId);
+    return { ok: true as const, id: result.id };
+  }
+
+  if (!isNotebookKind(kind)) {
     return { error: "Pick a notebook section." };
+  }
+  if (isParent(session.user.role)) {
+    return { error: "Parents can't write notebook section notes." };
+  }
+
+  let meetingId = input.meetingId;
+  if (!meetingId) {
+    const today = await ensureTodayMeeting(session.user.id);
+    meetingId = today.id;
   }
   const result = await addMeetingNote({
     meetingId,
     authorId: session.user.id,
-    body: String(formData.get("body") ?? ""),
-    kind: kindRaw,
+    body: input.body,
+    kind: kind as NotebookKind,
   });
   if ("error" in result) {
     return result;
   }
-  revalidatePath(`/meetings/${meetingId}`);
-  revalidatePath("/journal");
-  return { message: "Added to the notebook." };
+  revalidateJournal(meetingId);
+  return { ok: true as const, id: result.id };
 }
 
 export async function saveMeetingDetails(
   _prev: ActionState,
   formData: FormData,
 ): Promise<ActionState> {
-  await requireUser();
+  await requireCoach();
   const meetingId = String(formData.get("meetingId") ?? "");
   const sessionRaw = String(formData.get("sessionNumber") ?? "").trim();
   const result = await updateMeetingSummary({
@@ -331,29 +402,8 @@ export async function saveMeetingDetails(
   if ("error" in result) {
     return result;
   }
-  revalidatePath("/meetings");
-  revalidatePath("/journal");
-  revalidatePath(`/meetings/${meetingId}`);
+  revalidateJournal(meetingId);
   return { message: "Session updated." };
-}
-
-export async function addJournalEntry(
-  _prev: ActionState,
-  formData: FormData,
-): Promise<ActionState> {
-  const session = await requireUser();
-  const related = String(formData.get("relatedMeetingId") ?? "").trim();
-  const result = await createJournalEntry({
-    authorId: session.user.id,
-    title: String(formData.get("title") ?? ""),
-    body: String(formData.get("body") ?? ""),
-    relatedMeetingId: related || null,
-  });
-  if ("error" in result) {
-    return result;
-  }
-  revalidatePath("/journal");
-  return { message: "Journal entry saved." };
 }
 
 export async function saveMeetingMedia(input: {
@@ -372,10 +422,154 @@ export async function saveMeetingMedia(input: {
   if ("error" in result) {
     return result;
   }
-  revalidatePath(`/meetings/${input.meetingId}`);
-  revalidatePath("/gallery");
-  revalidatePath("/journal");
+  revalidateJournal(input.meetingId);
   return { message: "Photo or video added.", id: result.id };
+}
+
+export async function updateMediaCaptionAction(input: {
+  mediaId: string;
+  caption: string;
+}) {
+  const session = await requireUser();
+  const result = await updateMediaCaption({
+    mediaId: input.mediaId,
+    caption: input.caption,
+    userId: session.user.id,
+    isCoach: isCoach(session.user.role),
+  });
+  if ("error" in result) {
+    return result;
+  }
+  revalidateJournal(result.meetingId);
+  return { ok: true as const };
+}
+
+export async function setMissionStatusAction(input: {
+  missionId: number;
+  status: string;
+  meetingId?: string | null;
+}) {
+  const session = await requireUser();
+  if (isParent(session.user.role)) {
+    return { error: "Parents can't change mission status." };
+  }
+  if (!isMissionStatus(input.status)) {
+    return { error: "Pick a valid status." };
+  }
+  const result = await setMissionStatus({
+    missionId: input.missionId,
+    status: input.status,
+    userId: session.user.id,
+    meetingId: input.meetingId,
+  });
+  if ("error" in result) {
+    return result;
+  }
+  revalidateJournal(input.meetingId);
+  revalidatePath("/missions");
+  return { ok: true as const };
+}
+
+export async function joinMission(input: { missionId: number }) {
+  const session = await requireUser();
+  if (!isStudent(session.user.role)) {
+    return { error: "Only students can join a mission." };
+  }
+  const result = await addMissionAssignment({
+    missionId: input.missionId,
+    userId: session.user.id,
+    assignedById: session.user.id,
+  });
+  if ("error" in result) {
+    return result;
+  }
+  revalidatePath("/missions");
+  revalidatePath("/journal");
+  return { ok: true as const };
+}
+
+export async function leaveMission(input: { missionId: number }) {
+  const session = await requireUser();
+  if (!isStudent(session.user.role)) {
+    return { error: "Only students can leave a mission." };
+  }
+  await removeMissionAssignment({
+    missionId: input.missionId,
+    userId: session.user.id,
+  });
+  revalidatePath("/missions");
+  revalidatePath("/journal");
+  return { ok: true as const };
+}
+
+export async function assignMission(input: { missionId: number; userId: string }) {
+  const session = await requireCoach();
+  const result = await addMissionAssignment({
+    missionId: input.missionId,
+    userId: input.userId,
+    assignedById: session.user.id,
+  });
+  if ("error" in result) {
+    return result;
+  }
+  revalidatePath("/missions");
+  revalidatePath("/journal");
+  return { ok: true as const };
+}
+
+export async function unassignMission(input: { missionId: number; userId: string }) {
+  await requireCoach();
+  await removeMissionAssignment(input);
+  revalidatePath("/missions");
+  revalidatePath("/journal");
+  return { ok: true as const };
+}
+
+export async function postMissionNote(input: {
+  missionId: number;
+  body: string;
+  meetingId?: string | null;
+}) {
+  const session = await requireUser();
+  if (isParent(session.user.role)) {
+    return { error: "Parents can't write mission notes." };
+  }
+  const result = await addMissionNote({
+    missionId: input.missionId,
+    body: input.body,
+    authorId: session.user.id,
+    meetingId: input.meetingId,
+  });
+  if ("error" in result) {
+    return result;
+  }
+  revalidateJournal(input.meetingId);
+  revalidatePath("/missions");
+  return { ok: true as const, id: result.id };
+}
+
+export async function addSeasonEventAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const session = await requireCoach();
+  const result = await addSeasonEvent({
+    title: String(formData.get("title") ?? ""),
+    dayKey: String(formData.get("dayKey") ?? ""),
+    userId: session.user.id,
+  });
+  if ("error" in result) {
+    return result;
+  }
+  revalidatePath("/journal");
+  return { message: "Season date added." };
+}
+
+export async function deleteSeasonEventAction(id: string) {
+  await requireCoach();
+  await deleteSeasonEvent(id);
+  revalidatePath("/journal");
+  return { ok: true as const };
 }
 
 export type TeamProjectUploadResult =

@@ -1,153 +1,142 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 
-import { JournalEntryForm } from "@/components/journal-form";
-import { JournalSessionCard } from "@/components/journal-session-card";
-import { Separator } from "@/components/ui/separator";
-import { listJournalEntries } from "@/lib/journal";
-import { listNotebookSessions, listRecentMeetings } from "@/lib/meetings";
-import { requireUser } from "@/lib/session";
 import {
-  formatMeetingWhen,
-  formatTeamStamp,
-  TEAM_TIME_ZONE_ABBR,
-} from "@/lib/timezone";
+  AddToJournal,
+  buildTimeline,
+  JOURNAL_FILTERS,
+  Sidebar,
+  SeasonCard,
+  Timeline,
+  TodayCard,
+  type JournalFilter,
+} from "@/components/journal-timeline";
+import { listStudents } from "@/lib/accounts";
+import { listJournalEntries, listSeasonEvents } from "@/lib/journal";
+import { countMeetingMedia, listGalleryMedia } from "@/lib/media";
+import {
+  findMeetingForDay,
+  listNotebookSessions,
+  peekNextSessionNumber,
+} from "@/lib/meetings";
+import { countMissionStatusEvents, listMissionBoard } from "@/lib/missions-board";
+import { isCoach, isParent } from "@/lib/roles";
+import { requireUser } from "@/lib/session";
+import { teamDateKey } from "@/lib/timezone";
 
 export const metadata: Metadata = {
   title: "Journal",
 };
 
-type TimelineSession = {
-  kind: "session";
-  sortAt: number;
-  session: Awaited<ReturnType<typeof listNotebookSessions>>[number];
+type PageProps = {
+  searchParams: Promise<{ show?: string | string[] }>;
 };
 
-type TimelineNote = {
-  kind: "note";
-  sortAt: number;
-  entry: Awaited<ReturnType<typeof listJournalEntries>>[number];
-};
+function readFilter(value: string | string[] | undefined): JournalFilter {
+  const raw = Array.isArray(value) ? value[0] : value;
+  return JOURNAL_FILTERS.find((filter) => filter.key === raw)?.key ?? "all";
+}
 
-type TimelineItem = TimelineSession | TimelineNote;
+export default async function JournalPage({ searchParams }: PageProps) {
+  const session = await requireUser();
+  const filter = readFilter((await searchParams).show);
+  const parent = isParent(session.user.role);
+  const now = new Date();
 
-export default async function JournalPage() {
-  await requireUser();
-  const [sessions, entries, meetings] = await Promise.all([
-    listNotebookSessions(40),
+  const [
+    sessions,
+    entries,
+    board,
+    students,
+    seasonEvents,
+    latestMedia,
+    todayMeeting,
+    nextSession,
+    robotUpdates,
+    mediaCount,
+  ] = await Promise.all([
+    listNotebookSessions(),
     listJournalEntries(),
-    listRecentMeetings(30),
+    listMissionBoard(),
+    listStudents(),
+    listSeasonEvents(),
+    listGalleryMedia(6),
+    findMeetingForDay(teamDateKey(now)),
+    peekNextSessionNumber(),
+    countMissionStatusEvents(),
+    countMeetingMedia(),
   ]);
 
-  const timeline: TimelineItem[] = [
-    ...sessions.map(
-      (session): TimelineSession => ({
-        kind: "session",
-        sortAt: session.startsAt.getTime(),
-        session,
-      }),
-    ),
-    ...entries.map(
-      (entry): TimelineNote => ({
-        kind: "note",
-        sortAt: entry.createdAt.getTime(),
-        entry,
-      }),
-    ),
-  ].sort((left, right) => right.sortAt - left.sortAt);
+  const todayInTimeline = Boolean(
+    todayMeeting && sessions.some((item) => item.id === todayMeeting.id),
+  );
+  const items = buildTimeline(sessions, entries, filter);
+  const expandedIds = new Set<string>();
+  const newestMeeting = sessions[0];
+  if (newestMeeting) {
+    expandedIds.add(newestMeeting.id);
+  }
+  if (todayMeeting) {
+    expandedIds.add(todayMeeting.id);
+  }
 
   return (
     <div className="flex flex-col gap-8">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-3xl font-semibold">Engineering notebook</h1>
-        <p className="text-lg text-muted-foreground">
-          Meeting nights and extra notes in one timeline. Read what the team wrote, then open a
-          session if you need to edit.
+      <header className="flex max-w-2xl flex-col gap-2">
+        <p className="font-mono text-sm tracking-widest text-primary uppercase">
+          Team 55900 · 2026–27 season
         </p>
-      </div>
+        <h1 className="text-4xl font-bold tracking-tight sm:text-[44px] sm:leading-[1.1]">
+          Our season journal
+        </h1>
+        <p className="text-lg text-ink-muted">
+          Everything our team did this season, in order. Add today&apos;s work below, and scroll
+          down to see how far we&apos;ve come.
+        </p>
+      </header>
 
-      <section className="flex flex-col gap-4">
-        <JournalEntryForm
-          meetings={meetings.map((item) => ({
-            id: item.id,
-            label: `${item.sessionNumber != null ? `Session ${item.sessionNumber}` : item.title?.trim() || "Meeting"} · ${formatMeetingWhen(item.startsAt, item.endsAt)}`,
-          }))}
-        />
-      </section>
+      <SeasonCard
+        entries={entries}
+        seasonEvents={seasonEvents}
+        board={board}
+        sessionCount={sessions.length}
+        robotUpdates={robotUpdates}
+        mediaCount={mediaCount}
+        coach={isCoach(session.user.role)}
+        now={now}
+      />
 
-      <Separator />
+      <AddToJournal parent={parent} />
 
-      <section className="flex flex-col gap-4">
-        <div className="flex flex-col gap-2">
-          <h2 className="text-2xl font-semibold">Timeline</h2>
-          <p className="text-muted-foreground">
-            Sessions and extra notes, newest first. Extra notes sit in the same list as meetings.
-          </p>
+      <div className="flex flex-wrap items-start gap-8">
+        <div className="flex min-w-0 flex-col gap-6" style={{ flex: "999 1 560px" }}>
+          {todayInTimeline ? null : (
+            <TodayCard
+              nextSession={nextSession}
+              todayMeeting={
+                todayMeeting
+                  ? { id: todayMeeting.id, sessionNumber: todayMeeting.sessionNumber }
+                  : null
+              }
+              parent={parent}
+            />
+          )}
+          <Timeline
+            items={items}
+            students={students.map((student) => ({ id: student.id, name: student.name }))}
+            expandedIds={expandedIds}
+            filter={filter}
+          />
         </div>
-
-        {timeline.length === 0 ? (
-          <p className="text-muted-foreground">
-            Nothing here yet. Fill a meeting session or add an extra note above.
-          </p>
-        ) : (
-          <ul className="flex flex-col gap-4">
-            {timeline.map((item) =>
-              item.kind === "session" ? (
-                <li key={`session-${item.session.id}`}>
-                  <JournalSessionCard {...item.session} />
-                </li>
-              ) : (
-                <li key={`note-${item.entry.id}`}>
-                  <ExtraNoteCard entry={item.entry} />
-                </li>
-              ),
-            )}
-          </ul>
-        )}
-
-        <ButtonishLink href="/meetings">Open meetings calendar</ButtonishLink>
-      </section>
-    </div>
-  );
-}
-
-function ExtraNoteCard({
-  entry,
-}: {
-  entry: Awaited<ReturnType<typeof listJournalEntries>>[number];
-}) {
-  return (
-    <article className="rounded-xl bg-card px-4 py-5 ring-1 ring-foreground/10">
-      <p className="text-sm font-medium uppercase tracking-wide text-muted-foreground">
-        Extra note
-      </p>
-      {entry.title ? <h3 className="mt-1 text-xl font-semibold">{entry.title}</h3> : null}
-      <div className="mt-2 mb-3 flex flex-wrap gap-x-3 gap-y-1 text-base text-muted-foreground">
-        <span className="font-medium text-foreground">{entry.authorName}</span>
-        <span>
-          {formatTeamStamp(entry.createdAt)} {TEAM_TIME_ZONE_ABBR}
-        </span>
-        {entry.relatedMeeting ? (
-          <Link
-            href={`/meetings/${entry.relatedMeeting.id}`}
-            className="underline-offset-4 hover:underline"
-          >
-            Related: {entry.relatedMeeting.title?.trim() || "Session"}
-          </Link>
-        ) : null}
+        <div className="min-w-0" style={{ flex: "1 1 320px" }}>
+          <Sidebar
+            board={board}
+            students={students.map((student) => ({ id: student.id, name: student.name }))}
+            sessions={sessions}
+            latestMedia={latestMedia}
+            mediaCount={mediaCount}
+          />
+        </div>
       </div>
-      <p className="whitespace-pre-wrap text-lg">{entry.body}</p>
-    </article>
-  );
-}
-
-function ButtonishLink({ href, children }: { href: string; children: React.ReactNode }) {
-  return (
-    <Link
-      href={href}
-      className="inline-flex h-12 items-center justify-center self-start rounded-lg bg-secondary px-5 text-lg font-medium text-secondary-foreground hover:bg-[color-mix(in_oklch,var(--secondary),var(--foreground)_5%)]"
-    >
-      {children}
-    </Link>
+    </div>
   );
 }

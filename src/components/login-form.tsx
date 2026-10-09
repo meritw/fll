@@ -72,7 +72,7 @@ export function LoginForm() {
       } else if (user.mustSetDisplayName) {
         router.push("/set-name");
       } else if (user.role === "parent") {
-        router.push("/meetings");
+        router.push("/journal");
       } else {
         router.push("/home");
       }
@@ -137,7 +137,7 @@ export function LoginForm() {
       if (user.mustSetDisplayName) {
         router.push("/set-name");
       } else if (user.role === "parent") {
-        router.push("/meetings");
+        router.push("/journal");
       } else {
         router.push("/home");
       }

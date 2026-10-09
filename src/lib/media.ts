@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { count, eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { meeting, meetingMedia } from "@/db/schema";
@@ -195,4 +195,39 @@ export async function attachMeetingMedia(input: {
   });
 
   return { id };
+}
+
+export async function updateMediaCaption(input: {
+  mediaId: string;
+  caption: string;
+  userId: string;
+  isCoach: boolean;
+}) {
+  const row = await getDb().query.meetingMedia.findFirst({
+    where: (table, { eq: equals }) => equals(table.id, input.mediaId),
+    columns: { id: true, uploaderId: true, meetingId: true },
+  });
+  if (!row) {
+    return { error: "That photo is missing." };
+  }
+  if (!input.isCoach && row.uploaderId !== input.userId) {
+    return { error: "Only the uploader or a coach can edit this caption." };
+  }
+
+  const caption = input.caption.trim();
+  if (caption.length > 300) {
+    return { error: "Use a shorter caption." };
+  }
+
+  await getDb()
+    .update(meetingMedia)
+    .set({ caption: caption || null })
+    .where(eq(meetingMedia.id, input.mediaId));
+
+  return { ok: true as const, meetingId: row.meetingId };
+}
+
+export async function countMeetingMedia() {
+  const [row] = await getDb().select({ value: count() }).from(meetingMedia);
+  return Number(row?.value ?? 0);
 }

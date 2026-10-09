@@ -19,7 +19,7 @@ export default async function GalleryPage() {
       <div className="flex flex-col gap-2">
         <h1 className="text-3xl font-semibold">Gallery</h1>
         <p className="text-lg text-muted-foreground">
-          Photos and videos from team sessions, newest first. Upload from a meeting notebook page.
+          Photos and videos from team sessions, newest first. Upload from the journal.
         </p>
       </div>
 

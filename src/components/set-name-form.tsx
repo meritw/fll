@@ -27,7 +27,7 @@ export function SetNameForm() {
       setError(result.error);
       return;
     }
-    router.push("/meetings");
+    router.push("/journal");
     router.refresh();
   }
 

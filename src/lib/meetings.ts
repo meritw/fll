@@ -1,161 +1,28 @@
-import { and, asc, desc, eq, gte, inArray, lt, max, sql } from "drizzle-orm";
+import { and, asc, desc, eq, max, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { meeting, meetingAttendee, meetingNote, user } from "@/db/schema";
+import {
+  meeting,
+  meetingAttendee,
+  meetingNote,
+  user,
+} from "@/db/schema";
 import { isNotebookKind, NOTEBOOK_SECTION_LABELS, type NotebookKind } from "@/lib/notebook";
+import {
+  isMissionStatus,
+  type MissionStatus,
+} from "@/lib/mission-status";
 import {
   parseTeamDateKey,
   teamDateKey,
   TEAM_TIME_ZONE,
-  teamWeekday,
   zonedDateTime,
 } from "@/lib/timezone";
 
-/** Seed window: Mon/Thu evenings through Dec 5, 2026 (inclusive end date).
- * Session 1 is Thu 2026-09-24 (first team meeting); Mon 2026-09-28 is Session 2.
- */
-const SEED_FROM = { year: 2026, month: 9, day: 24 };
-const SEED_THROUGH = { year: 2026, month: 12, day: 5 };
-const EVENING_START_HOUR = 18;
-const EVENING_END_HOUR = 20;
+const MEETING_DURATION_MS = 2 * 60 * 60 * 1000;
 
 export { NOTEBOOK_SECTION_LABELS, isNotebookKind };
 export type { NotebookKind };
-
-export function listSeedSlots() {
-  const slots: {
-    dateKey: string;
-    startsAt: Date;
-    endsAt: Date;
-    seedKey: string;
-    sessionNumber: number;
-  }[] = [];
-  let cursor = zonedDateTime(SEED_FROM.year, SEED_FROM.month, SEED_FROM.day, 12, 0);
-  const end = zonedDateTime(SEED_THROUGH.year, SEED_THROUGH.month, SEED_THROUGH.day, 23, 59);
-
-  while (cursor.getTime() <= end.getTime()) {
-    const weekday = teamWeekday(cursor);
-    if (weekday === "Mon" || weekday === "Thu") {
-      const dateKey = teamDateKey(cursor);
-      const { year, month, day } = parseTeamDateKey(dateKey)!;
-      const startsAt = zonedDateTime(year, month, day, EVENING_START_HOUR, 0);
-      const endsAt = zonedDateTime(year, month, day, EVENING_END_HOUR, 0);
-      slots.push({
-        dateKey,
-        startsAt,
-        endsAt,
-        // "et" distinguishes from earlier Pacific seeds (`mon-thu:DATE`).
-        seedKey: `mon-thu-et:${dateKey}`,
-        sessionNumber: slots.length + 1,
-      });
-    }
-    cursor = new Date(cursor.getTime() + 24 * 60 * 60 * 1000);
-  }
-
-  return slots;
-}
-
-function legacySeedKey(dateKey: string) {
-  return `mon-thu:${dateKey}`;
-}
-
-/**
- * Insert Mon/Thu Eastern evening meetings. Safe to re-run:
- * - new installs get correct America/New_York times + session numbers
- * - DBs that already seeded Pacific (`mon-thu:DATE`) are rewritten to Eastern
- *   times and renamed to `mon-thu-et:DATE`
- * - existing `mon-thu-et` rows get times / session numbers corrected if needed
- */
-export async function ensureRecurringMeetings() {
-  const slots = listSeedSlots();
-  if (slots.length === 0) {
-    return;
-  }
-
-  const db = getDb();
-
-  for (const slot of slots) {
-    const now = new Date();
-    const legacyKey = legacySeedKey(slot.dateKey);
-
-    const existing = await db
-      .select({
-        id: meeting.id,
-        seedKey: meeting.seedKey,
-      })
-      .from(meeting)
-      .where(inArray(meeting.seedKey, [slot.seedKey, legacyKey]));
-
-    const easternRow = existing.find((row) => row.seedKey === slot.seedKey);
-    const legacyRow = existing.find((row) => row.seedKey === legacyKey);
-
-    if (easternRow) {
-      await db
-        .update(meeting)
-        .set({
-          startsAt: slot.startsAt,
-          endsAt: slot.endsAt,
-          sessionNumber: slot.sessionNumber,
-          updatedAt: now,
-        })
-        .where(eq(meeting.id, easternRow.id));
-
-      if (legacyRow) {
-        const [{ attendeeCount }] = await db
-          .select({ attendeeCount: sql<number>`count(*)::int` })
-          .from(meetingAttendee)
-          .where(eq(meetingAttendee.meetingId, legacyRow.id));
-        const [{ noteCount }] = await db
-          .select({ noteCount: sql<number>`count(*)::int` })
-          .from(meetingNote)
-          .where(eq(meetingNote.meetingId, legacyRow.id));
-        if (attendeeCount === 0 && noteCount === 0) {
-          await db.delete(meeting).where(eq(meeting.id, legacyRow.id));
-        } else {
-          await db
-            .update(meeting)
-            .set({
-              startsAt: slot.startsAt,
-              endsAt: slot.endsAt,
-              sessionNumber: slot.sessionNumber,
-              updatedAt: now,
-            })
-            .where(eq(meeting.id, legacyRow.id));
-        }
-      }
-      continue;
-    }
-
-    if (legacyRow) {
-      await db
-        .update(meeting)
-        .set({
-          startsAt: slot.startsAt,
-          endsAt: slot.endsAt,
-          seedKey: slot.seedKey,
-          sessionNumber: slot.sessionNumber,
-          updatedAt: now,
-        })
-        .where(eq(meeting.id, legacyRow.id));
-      continue;
-    }
-  }
-
-  await db
-    .insert(meeting)
-    .values(
-      slots.map((slot) => ({
-        id: crypto.randomUUID(),
-        startsAt: slot.startsAt,
-        endsAt: slot.endsAt,
-        title: "Team meeting",
-        sessionNumber: slot.sessionNumber,
-        seedKey: slot.seedKey,
-        createdById: null,
-      })),
-    )
-    .onConflictDoNothing({ target: meeting.seedKey });
-}
 
 export async function listMeetings() {
   return getDb().query.meeting.findMany({
@@ -168,18 +35,23 @@ export async function listMeetings() {
       summary: true,
       sessionNumber: true,
       seedKey: true,
+      dayKey: true,
       attendanceRecordedAt: true,
     },
   });
 }
 
-export async function listMeetingsForMonth(year: number, month: number) {
-  const start = zonedDateTime(year, month, 1, 0, 0);
-  const endMonth = month === 12 ? 1 : month + 1;
-  const endYear = month === 12 ? year + 1 : year;
-  const end = zonedDateTime(endYear, endMonth, 1, 0, 0);
+/** Find a meeting on a team-time-zone day by day_key or startsAt window. */
+export async function findMeetingForDay(dayKey: string) {
+  const parsed = parseTeamDateKey(dayKey);
+  if (!parsed) {
+    return null;
+  }
 
-  return getDb()
+  const dayStart = zonedDateTime(parsed.year, parsed.month, parsed.day, 0, 0);
+  const next = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+
+  const rows = await getDb()
     .select({
       id: meeting.id,
       startsAt: meeting.startsAt,
@@ -187,11 +59,54 @@ export async function listMeetingsForMonth(year: number, month: number) {
       title: meeting.title,
       summary: meeting.summary,
       sessionNumber: meeting.sessionNumber,
+      dayKey: meeting.dayKey,
       attendanceRecordedAt: meeting.attendanceRecordedAt,
     })
     .from(meeting)
-    .where(and(gte(meeting.startsAt, start), lt(meeting.startsAt, end)))
-    .orderBy(asc(meeting.startsAt));
+    .where(
+      sql`(${meeting.dayKey} = ${dayKey} OR (${meeting.startsAt} >= ${dayStart} AND ${meeting.startsAt} < ${next}))`,
+    )
+    .orderBy(asc(meeting.startsAt))
+    .limit(1);
+
+  return rows[0] ?? null;
+}
+
+async function nextSessionNumber() {
+  const [row] = await getDb().select({ value: max(meeting.sessionNumber) }).from(meeting);
+  return (row?.value ?? 0) + 1;
+}
+
+/** Start or return today's live meeting. Race-safe via day_key unique. */
+export async function ensureTodayMeeting(userId: string) {
+  const dayKey = teamDateKey(new Date());
+  const existing = await findMeetingForDay(dayKey);
+  if (existing) {
+    return { id: existing.id, created: false as const };
+  }
+
+  const now = new Date();
+  const id = crypto.randomUUID();
+  const sessionNumber = await nextSessionNumber();
+
+  await getDb()
+    .insert(meeting)
+    .values({
+      id,
+      dayKey,
+      startsAt: now,
+      endsAt: new Date(now.getTime() + MEETING_DURATION_MS),
+      title: "Team meeting",
+      sessionNumber,
+      createdById: userId,
+    })
+    .onConflictDoNothing({ target: meeting.dayKey });
+
+  const row = await findMeetingForDay(dayKey);
+  if (!row) {
+    throw new Error("Could not start today's meeting.");
+  }
+  return { id: row.id, created: row.id === id };
 }
 
 export async function getMeeting(id: string) {
@@ -205,6 +120,24 @@ export async function getMeeting(id: string) {
       notes: {
         orderBy: (table, { asc: orderAsc }) => [orderAsc(table.createdAt)],
         with: { author: { columns: { id: true, name: true } } },
+      },
+      media: {
+        orderBy: (table, { desc: orderDesc }) => [orderDesc(table.createdAt)],
+        with: { uploader: { columns: { id: true, name: true } } },
+      },
+      missionNotes: {
+        orderBy: (table, { desc: orderDesc }) => [orderDesc(table.createdAt)],
+        with: {
+          author: { columns: { id: true, name: true } },
+          mission: { columns: { id: true, number: true, name: true } },
+        },
+      },
+      missionStatusEvents: {
+        orderBy: (table, { asc: orderAsc }) => [orderAsc(table.createdAt)],
+        with: {
+          mission: { columns: { id: true, number: true, name: true } },
+          user: { columns: { id: true, name: true } },
+        },
       },
     },
   });
@@ -230,9 +163,9 @@ export async function getMeeting(id: string) {
     summary: row.summary,
     sessionNumber: row.sessionNumber,
     seedKey: row.seedKey,
+    dayKey: row.dayKey,
     attendanceRecordedAt: row.attendanceRecordedAt,
     attendanceRecordedBy: row.attendanceRecordedBy,
-    // Attendance UI is students-only; keep non-student rows in DB but hide them.
     attendees: row.attendees
       .map((item) => item.user)
       .filter((person) => person.role === "student")
@@ -241,75 +174,42 @@ export async function getMeeting(id: string) {
     progress: notes.filter((note) => note.kind === "progress"),
     actions: notes.filter((note) => note.kind === "action"),
     lessons: notes.filter((note) => note.kind === "lesson"),
+    media: row.media.map((item) => ({
+      id: item.id,
+      contentType: item.contentType,
+      caption: item.caption,
+      fileName: item.fileName,
+      createdAt: item.createdAt,
+      uploaderId: item.uploaderId,
+      uploaderName: item.uploader.name,
+    })),
+    missionNotes: row.missionNotes.map((note) => ({
+      id: note.id,
+      body: note.body,
+      createdAt: note.createdAt,
+      authorName: note.author.name,
+      missionId: note.mission.id,
+      missionNumber: note.mission.number,
+      missionName: note.mission.name,
+    })),
+    missionStatusEvents: row.missionStatusEvents.map((event) => ({
+      id: event.id,
+      status: (isMissionStatus(event.status) ? event.status : "none") as MissionStatus,
+      createdAt: event.createdAt,
+      userName: event.user?.name ?? null,
+      missionId: event.mission.id,
+      missionNumber: event.mission.number,
+      missionName: event.mission.name,
+    })),
   };
 }
 
-async function nextSessionNumber() {
-  const [row] = await getDb().select({ value: max(meeting.sessionNumber) }).from(meeting);
-  return (row?.value ?? 0) + 1;
-}
-
-export async function createOneOffMeeting(input: {
-  userId: string;
-  dateKey: string;
-  title?: string;
-  summary?: string;
-  startHour?: number;
-  endHour?: number;
-  sessionNumber?: number;
-}) {
-  const parsed = parseTeamDateKey(input.dateKey);
-  if (!parsed) {
-    return { error: "Pick a valid date." };
-  }
-
-  const startHour = input.startHour ?? EVENING_START_HOUR;
-  const endHour = input.endHour ?? EVENING_END_HOUR;
-  if (startHour < 0 || startHour > 23 || endHour <= startHour || endHour > 24) {
-    return { error: "Pick a sensible start and end time." };
-  }
-
-  const title = input.title?.trim() || "Team meeting";
-  if (title.length > 80) {
-    return { error: "Use a shorter title." };
-  }
-  const summary = input.summary?.trim() || null;
-  if (summary && summary.length > 500) {
-    return { error: "Use a shorter summary." };
-  }
-
-  const startsAt = zonedDateTime(parsed.year, parsed.month, parsed.day, startHour, 0);
-  const endsAt = zonedDateTime(
-    parsed.year,
-    parsed.month,
-    parsed.day,
-    endHour === 24 ? 23 : endHour,
-    endHour === 24 ? 59 : 0,
-  );
-  const id = crypto.randomUUID();
-  const sessionNumber =
-    typeof input.sessionNumber === "number" && input.sessionNumber > 0
-      ? Math.floor(input.sessionNumber)
-      : await nextSessionNumber();
-
-  await getDb().insert(meeting).values({
-    id,
-    startsAt,
-    endsAt,
-    title,
-    summary,
-    sessionNumber,
-    seedKey: null,
-    createdById: input.userId,
-  });
-
-  return { id };
-}
-
-export async function saveAttendance(input: {
+/** Toggle one student present/absent. Students only. */
+export async function setAttendance(input: {
   meetingId: string;
+  userId: string;
+  present: boolean;
   recordedById: string;
-  attendeeIds: string[];
 }) {
   const [existing] = await getDb()
     .select({ id: meeting.id })
@@ -320,55 +220,42 @@ export async function saveAttendance(input: {
     return { error: "That meeting is missing." };
   }
 
-  // Only students may be marked present. Coaches/parents (and other roles) are ignored.
-  const unique = [...new Set(input.attendeeIds.filter(Boolean))];
-  let allowed: string[] = [];
-  if (unique.length > 0) {
-    const rows = await getDb()
-      .select({ id: user.id })
-      .from(user)
-      .where(and(inArray(user.id, unique), eq(user.role, "student")));
-    allowed = rows.map((row) => row.id);
+  const [person] = await getDb()
+    .select({ id: user.id, name: user.name, role: user.role })
+    .from(user)
+    .where(eq(user.id, input.userId))
+    .limit(1);
+  if (!person || person.role !== "student") {
+    return { error: "Only students can be marked present." };
   }
 
   const recordedAt = new Date();
-  await getDb().transaction(async (tx) => {
-    // Replace student rows only — leave any historical non-student checkmarks untouched.
-    const priorStudents = await tx
-      .select({ userId: meetingAttendee.userId })
-      .from(meetingAttendee)
-      .innerJoin(user, eq(meetingAttendee.userId, user.id))
-      .where(and(eq(meetingAttendee.meetingId, input.meetingId), eq(user.role, "student")));
-    if (priorStudents.length > 0) {
-      await tx.delete(meetingAttendee).where(
+  if (input.present) {
+    await getDb()
+      .insert(meetingAttendee)
+      .values({ meetingId: input.meetingId, userId: input.userId })
+      .onConflictDoNothing();
+  } else {
+    await getDb()
+      .delete(meetingAttendee)
+      .where(
         and(
           eq(meetingAttendee.meetingId, input.meetingId),
-          inArray(
-            meetingAttendee.userId,
-            priorStudents.map((row) => row.userId),
-          ),
+          eq(meetingAttendee.userId, input.userId),
         ),
       );
-    }
-    if (allowed.length > 0) {
-      await tx.insert(meetingAttendee).values(
-        allowed.map((userId) => ({
-          meetingId: input.meetingId,
-          userId,
-        })),
-      );
-    }
-    await tx
-      .update(meeting)
-      .set({
-        attendanceRecordedById: input.recordedById,
-        attendanceRecordedAt: recordedAt,
-        updatedAt: recordedAt,
-      })
-      .where(eq(meeting.id, input.meetingId));
-  });
+  }
 
-  return { ok: true as const };
+  await getDb()
+    .update(meeting)
+    .set({
+      attendanceRecordedById: input.recordedById,
+      attendanceRecordedAt: recordedAt,
+      updatedAt: recordedAt,
+    })
+    .where(eq(meeting.id, input.meetingId));
+
+  return { ok: true as const, userName: person.name, present: input.present };
 }
 
 export async function addMeetingNote(input: {
@@ -455,36 +342,6 @@ export async function updateMeetingSummary(input: {
   return { ok: true as const };
 }
 
-export async function listUpcomingMeetings(limit = 20) {
-  return getDb()
-    .select({
-      id: meeting.id,
-      startsAt: meeting.startsAt,
-      endsAt: meeting.endsAt,
-      title: meeting.title,
-      sessionNumber: meeting.sessionNumber,
-    })
-    .from(meeting)
-    .where(gte(meeting.startsAt, new Date(Date.now() - 12 * 60 * 60 * 1000)))
-    .orderBy(asc(meeting.startsAt))
-    .limit(limit);
-}
-
-/** Schedule-only rows for the public .ics feed (no notes, attendance, or summary). */
-export async function listMeetingsForCalendar() {
-  return getDb()
-    .select({
-      id: meeting.id,
-      startsAt: meeting.startsAt,
-      endsAt: meeting.endsAt,
-      title: meeting.title,
-      sessionNumber: meeting.sessionNumber,
-      updatedAt: meeting.updatedAt,
-    })
-    .from(meeting)
-    .orderBy(asc(meeting.startsAt));
-}
-
 export async function listRecentMeetings(limit = 40) {
   return getDb()
     .select({
@@ -493,6 +350,7 @@ export async function listRecentMeetings(limit = 40) {
       endsAt: meeting.endsAt,
       title: meeting.title,
       sessionNumber: meeting.sessionNumber,
+      dayKey: meeting.dayKey,
     })
     .from(meeting)
     .orderBy(desc(meeting.startsAt))
@@ -507,22 +365,23 @@ function meetingHasNotebookContent(row: {
   attendees: { userId: string }[];
   media: { id: string }[];
   journalEntries: { id: string }[];
+  missionNotes?: { id: string }[];
+  missionStatusEvents?: { id: string }[];
 }) {
   return (
     row.notes.length > 0 ||
     row.attendees.length > 0 ||
     row.media.length > 0 ||
     row.journalEntries.length > 0 ||
+    (row.missionNotes?.length ?? 0) > 0 ||
+    (row.missionStatusEvents?.length ?? 0) > 0 ||
     Boolean(row.summary?.trim()) ||
     row.attendanceRecordedAt != null
   );
 }
 
-/** Sessions for the engineering notebook index (newest first).
- * Empty calendar shells (no notes, attendance, media, summary, or related journal) are omitted.
- * Includes notebook body content for the journal timeline (read-only inline view).
- */
-export async function listNotebookSessions(limit = 40) {
+/** Sessions for the journal timeline (newest first). Empty shells omitted. */
+export async function listNotebookSessions(limit = 200) {
   const rows = await getDb().query.meeting.findMany({
     orderBy: (table, { desc: orderDesc }) => [orderDesc(table.startsAt)],
     with: {
@@ -538,6 +397,20 @@ export async function listNotebookSessions(limit = 40) {
         with: { uploader: { columns: { id: true, name: true } } },
       },
       journalEntries: { columns: { id: true } },
+      missionNotes: {
+        orderBy: (table, { desc: orderDesc }) => [orderDesc(table.createdAt)],
+        with: {
+          author: { columns: { id: true, name: true } },
+          mission: { columns: { id: true, number: true, name: true } },
+        },
+      },
+      missionStatusEvents: {
+        orderBy: (table, { asc: orderAsc }) => [orderAsc(table.createdAt)],
+        with: {
+          mission: { columns: { id: true, number: true, name: true } },
+          user: { columns: { id: true, name: true } },
+        },
+      },
     },
   });
 
@@ -555,7 +428,6 @@ export async function listNotebookSessions(limit = 40) {
       const progress = notes.filter((note) => note.kind === "progress");
       const actions = notes.filter((note) => note.kind === "action");
       const lessons = notes.filter((note) => note.kind === "lesson");
-      // Attendance UI is students-only; keep non-student rows in DB but hide them.
       const attendees = row.attendees
         .map((item) => item.user)
         .filter((person) => person.role === "student")
@@ -574,6 +446,7 @@ export async function listNotebookSessions(limit = 40) {
         title: row.title,
         summary: row.summary,
         sessionNumber: row.sessionNumber,
+        dayKey: row.dayKey,
         attendeeCount: attendees.length,
         progressCount: progress.length,
         actionCount: actions.length,
@@ -583,8 +456,30 @@ export async function listNotebookSessions(limit = 40) {
         actions,
         lessons,
         media,
+        missionNotes: row.missionNotes.map((note) => ({
+          id: note.id,
+          body: note.body,
+          createdAt: note.createdAt,
+          authorName: note.author.name,
+          missionId: note.mission.id,
+          missionNumber: note.mission.number,
+          missionName: note.mission.name,
+        })),
+        missionStatusEvents: row.missionStatusEvents.map((event) => ({
+          id: event.id,
+          status: (isMissionStatus(event.status) ? event.status : "none") as MissionStatus,
+          createdAt: event.createdAt,
+          userName: event.user?.name ?? null,
+          missionId: event.mission.id,
+          missionNumber: event.mission.number,
+          missionName: event.mission.name,
+        })),
       };
     });
 }
 
-export { TEAM_TIME_ZONE, EVENING_START_HOUR, EVENING_END_HOUR };
+export async function peekNextSessionNumber() {
+  return nextSessionNumber();
+}
+
+export { TEAM_TIME_ZONE };

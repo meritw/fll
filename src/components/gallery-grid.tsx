@@ -23,7 +23,7 @@ export function GalleryGrid({ items }: { items: GalleryItem[] }) {
   if (items.length === 0) {
     return (
       <p className="text-lg text-muted-foreground">
-        No photos or videos yet. Add them from a meeting session page.
+        No photos or videos yet. Add them from the journal.
       </p>
     );
   }
@@ -63,7 +63,7 @@ export function GalleryGrid({ items }: { items: GalleryItem[] }) {
           ) : null}
           <p className="text-base">
             <Link
-              href={`/meetings/${item.meetingId}`}
+              href={`/journal/${item.meetingId}`}
               className="font-medium underline-offset-4 hover:underline"
             >
               {item.sessionLabel}

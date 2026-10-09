@@ -34,7 +34,7 @@ export function postAuthPath(user: {
     return "/set-name";
   }
   if (isParent(user.role)) {
-    return "/meetings";
+    return "/journal";
   }
   return "/home";
 }
@@ -59,7 +59,7 @@ export async function requireUser(options?: {
 export async function requireCoach() {
   const session = await requireUser();
   if (!isCoach(session.user.role)) {
-    redirect(isParent(session.user.role) ? "/meetings" : "/home");
+    redirect(isParent(session.user.role) ? "/journal" : "/home");
   }
   return session;
 }

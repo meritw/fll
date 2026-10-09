@@ -1,7 +1,8 @@
-import { desc, eq } from "drizzle-orm";
+import { asc, desc, eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
-import { journalEntry, meeting } from "@/db/schema";
+import { journalEntry, meeting, seasonEvent } from "@/db/schema";
+import { parseTeamDateKey } from "@/lib/timezone";
 
 export async function listJournalEntries() {
   const rows = await getDb().query.journalEntry.findMany({
@@ -9,7 +10,13 @@ export async function listJournalEntries() {
     with: {
       author: { columns: { id: true, name: true } },
       relatedMeeting: {
-        columns: { id: true, startsAt: true, endsAt: true, title: true },
+        columns: {
+          id: true,
+          startsAt: true,
+          endsAt: true,
+          title: true,
+          sessionNumber: true,
+        },
       },
     },
   });
@@ -18,6 +25,7 @@ export async function listJournalEntries() {
     id: row.id,
     title: row.title,
     body: row.body,
+    milestone: row.milestone,
     createdAt: row.createdAt,
     authorName: row.author.name,
     authorId: row.author.id,
@@ -27,6 +35,7 @@ export async function listJournalEntries() {
           startsAt: row.relatedMeeting.startsAt,
           endsAt: row.relatedMeeting.endsAt,
           title: row.relatedMeeting.title,
+          sessionNumber: row.relatedMeeting.sessionNumber,
         }
       : null,
   }));
@@ -37,6 +46,7 @@ export async function createJournalEntry(input: {
   body: string;
   title?: string;
   relatedMeetingId?: string | null;
+  milestone?: boolean;
 }) {
   const body = input.body.trim();
   if (!body) {
@@ -49,6 +59,11 @@ export async function createJournalEntry(input: {
   const title = input.title?.trim() || null;
   if (title && title.length > 120) {
     return { error: "Use a shorter title." };
+  }
+
+  const milestone = Boolean(input.milestone);
+  if (milestone && !body) {
+    return { error: "A milestone needs a note." };
   }
 
   const relatedMeetingId: string | null = input.relatedMeetingId?.trim() || null;
@@ -70,6 +85,7 @@ export async function createJournalEntry(input: {
     body,
     authorId: input.authorId,
     relatedMeetingId,
+    milestone,
   });
 
   return { id };
@@ -81,7 +97,7 @@ export async function getJournalEntry(id: string) {
     with: {
       author: { columns: { id: true, name: true } },
       relatedMeeting: {
-        columns: { id: true, startsAt: true, endsAt: true, title: true },
+        columns: { id: true, startsAt: true, endsAt: true, title: true, sessionNumber: true },
       },
     },
   });
@@ -92,6 +108,7 @@ export async function getJournalEntry(id: string) {
     id: row.id,
     title: row.title,
     body: row.body,
+    milestone: row.milestone,
     createdAt: row.createdAt,
     authorName: row.author.name,
     relatedMeeting: row.relatedMeeting,
@@ -104,8 +121,52 @@ export async function listJournalEntriesRecent(limit = 5) {
       id: journalEntry.id,
       title: journalEntry.title,
       createdAt: journalEntry.createdAt,
+      milestone: journalEntry.milestone,
     })
     .from(journalEntry)
     .orderBy(desc(journalEntry.createdAt))
     .limit(limit);
+}
+
+export async function listSeasonEvents() {
+  return getDb()
+    .select({
+      id: seasonEvent.id,
+      title: seasonEvent.title,
+      dayKey: seasonEvent.dayKey,
+      createdAt: seasonEvent.createdAt,
+    })
+    .from(seasonEvent)
+    .orderBy(asc(seasonEvent.dayKey));
+}
+
+export async function addSeasonEvent(input: {
+  title: string;
+  dayKey: string;
+  userId: string;
+}) {
+  const title = input.title.trim();
+  if (!title) {
+    return { error: "Add a title." };
+  }
+  if (title.length > 60) {
+    return { error: "Use a shorter title." };
+  }
+  if (!parseTeamDateKey(input.dayKey)) {
+    return { error: "Pick a valid date." };
+  }
+
+  const id = crypto.randomUUID();
+  await getDb().insert(seasonEvent).values({
+    id,
+    title,
+    dayKey: input.dayKey,
+    createdById: input.userId,
+  });
+  return { id };
+}
+
+export async function deleteSeasonEvent(id: string) {
+  await getDb().delete(seasonEvent).where(eq(seasonEvent.id, id));
+  return { ok: true as const };
 }
