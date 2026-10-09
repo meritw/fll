@@ -20,11 +20,11 @@ export default async function ConflictsPage() {
         <div>
           <h1 className="text-3xl font-semibold">Merge conflicts</h1>
           <p className="mt-2 text-lg text-muted-foreground">
-            Kids uploaded overlapping edits. Pick team version, their upload, or a fixed zip.
+            Team members uploaded overlapping edits. Pick team version, their upload, or a fixed zip.
           </p>
         </div>
         <Button asChild size="xl" variant="outline">
-          <Link href="/home">Back to home</Link>
+          <Link href="/home">Back to Code</Link>
         </Button>
       </div>
 

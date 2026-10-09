@@ -25,7 +25,7 @@ function loginErrorMessage(
   if (!error) {
     return fallback;
   }
-  // Credential failures stay kid-friendly; surface other auth/config failures.
+  // Credential failures stay friendly for team members; surface other auth/config failures.
   if (error.status === 401 || error.code === "INVALID_USERNAME_OR_PASSWORD") {
     return fallback;
   }
@@ -71,10 +71,8 @@ export function LoginForm() {
         router.push("/set-password");
       } else if (user.mustSetDisplayName) {
         router.push("/set-name");
-      } else if (user.role === "parent") {
-        router.push("/meetings");
       } else {
-        router.push("/home");
+        router.push("/journal");
       }
       router.refresh();
     } catch (cause) {
@@ -136,10 +134,8 @@ export function LoginForm() {
       const user = sessionResult.data.user;
       if (user.mustSetDisplayName) {
         router.push("/set-name");
-      } else if (user.role === "parent") {
-        router.push("/meetings");
       } else {
-        router.push("/home");
+        router.push("/journal");
       }
       router.refresh();
     } catch (cause) {

@@ -1,5 +1,6 @@
 import { relations } from "drizzle-orm";
 import {
+  boolean,
   index,
   integer,
   pgTable,
@@ -19,6 +20,81 @@ export const mission = pgTable("mission", {
   id: serial("id").primaryKey(),
   number: integer("number").notNull().unique(),
   name: text("name").notNull(),
+  // none | trying | some | every (see lib/mission-status.ts)
+  status: text("status").notNull().default("none"),
+  statusUpdatedAt: timestamp("status_updated_at", { withTimezone: true }),
+  statusUpdatedById: text("status_updated_by_id").references(() => user.id, {
+    onDelete: "set null",
+  }),
+});
+
+/** Team members working on a mission. They add themselves; coaches can add or remove anyone. */
+export const missionAssignment = pgTable(
+  "mission_assignment",
+  {
+    missionId: integer("mission_id")
+      .notNull()
+      .references(() => mission.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    assignedById: text("assigned_by_id").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.missionId, table.userId] }),
+    index("mission_assignment_user_idx").on(table.userId),
+  ],
+);
+
+/** Notes about one mission. meetingId is the meeting it was written at, if any. */
+export const missionNote = pgTable(
+  "mission_note",
+  {
+    id: text("id").primaryKey(),
+    missionId: integer("mission_id")
+      .notNull()
+      .references(() => mission.id, { onDelete: "cascade" }),
+    meetingId: text("meeting_id").references(() => meeting.id, { onDelete: "set null" }),
+    body: text("body").notNull(),
+    authorId: text("author_id")
+      .notNull()
+      .references(() => user.id, { onDelete: "restrict" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("mission_note_mission_idx").on(table.missionId),
+    index("mission_note_meeting_idx").on(table.meetingId),
+  ],
+);
+
+/** Each status change, so the journal can show robot updates per meeting. */
+export const missionStatusEvent = pgTable(
+  "mission_status_event",
+  {
+    id: text("id").primaryKey(),
+    missionId: integer("mission_id")
+      .notNull()
+      .references(() => mission.id, { onDelete: "cascade" }),
+    meetingId: text("meeting_id").references(() => meeting.id, { onDelete: "set null" }),
+    status: text("status").notNull(),
+    userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    index("mission_status_event_mission_idx").on(table.missionId),
+    index("mission_status_event_meeting_idx").on(table.meetingId),
+  ],
+);
+
+/** Coach-entered season dates (kickoff, scrimmage, qualifier) for the journal's season strip. */
+export const seasonEvent = pgTable("season_event", {
+  id: text("id").primaryKey(),
+  title: text("title").notNull(),
+  // YYYY-MM-DD in the team time zone
+  dayKey: text("day_key").notNull(),
+  createdById: text("created_by_id").references(() => user.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
 export const program = pgTable("program", {
@@ -81,6 +157,8 @@ export const meeting = pgTable(
     // Unique key for seeded Mon/Thu sessions so re-seed skips duplicates.
     // Current keys: mon-thu-et:YYYY-MM-DD (Eastern). Legacy Pacific: mon-thu:YYYY-MM-DD.
     seedKey: text("seed_key").unique(),
+    // YYYY-MM-DD (team time zone) for meetings started live from the journal; one per day.
+    dayKey: text("day_key").unique(),
     createdById: text("created_by_id").references(() => user.id, {
       onDelete: "set null",
     }),
@@ -141,6 +219,9 @@ export const journalEntry = pgTable(
     relatedMeetingId: text("related_meeting_id").references(() => meeting.id, {
       onDelete: "set null",
     }),
+    milestone: boolean("milestone").notNull().default(false),
+    // Set only when the writer said so ("I'm writing this from home").
+    fromHome: boolean("from_home").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [index("journal_entry_created_at_idx").on(table.createdAt)],
@@ -221,6 +302,50 @@ export const pybricksLicenseRelations = relations(pybricksLicense, ({ one }) => 
 
 export const missionRelations = relations(mission, ({ many }) => ({
   versionMissions: many(versionMission),
+  assignments: many(missionAssignment),
+  notes: many(missionNote),
+  statusEvents: many(missionStatusEvent),
+}));
+
+export const missionAssignmentRelations = relations(missionAssignment, ({ one }) => ({
+  mission: one(mission, {
+    fields: [missionAssignment.missionId],
+    references: [mission.id],
+  }),
+  user: one(user, {
+    fields: [missionAssignment.userId],
+    references: [user.id],
+  }),
+}));
+
+export const missionNoteRelations = relations(missionNote, ({ one }) => ({
+  mission: one(mission, {
+    fields: [missionNote.missionId],
+    references: [mission.id],
+  }),
+  meeting: one(meeting, {
+    fields: [missionNote.meetingId],
+    references: [meeting.id],
+  }),
+  author: one(user, {
+    fields: [missionNote.authorId],
+    references: [user.id],
+  }),
+}));
+
+export const missionStatusEventRelations = relations(missionStatusEvent, ({ one }) => ({
+  mission: one(mission, {
+    fields: [missionStatusEvent.missionId],
+    references: [mission.id],
+  }),
+  meeting: one(meeting, {
+    fields: [missionStatusEvent.meetingId],
+    references: [meeting.id],
+  }),
+  user: one(user, {
+    fields: [missionStatusEvent.userId],
+    references: [user.id],
+  }),
 }));
 
 export const programRelations = relations(program, ({ one, many }) => ({
@@ -269,6 +394,8 @@ export const meetingRelations = relations(meeting, ({ one, many }) => ({
   notes: many(meetingNote),
   media: many(meetingMedia),
   journalEntries: many(journalEntry),
+  missionNotes: many(missionNote),
+  missionStatusEvents: many(missionStatusEvent),
 }));
 
 export const meetingAttendeeRelations = relations(meetingAttendee, ({ one }) => ({
@@ -348,7 +475,7 @@ export const teamProjectCommit = pgTable(
   ],
 );
 
-/** One kid/coach upload attempt (merged, conflicted, or seeded). */
+/** One team member/coach upload attempt (merged, conflicted, or seeded). */
 export const teamProjectUpload = pgTable(
   "team_project_upload",
   {

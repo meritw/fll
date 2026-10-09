@@ -76,7 +76,7 @@ export function SetPasswordForm({ username }: { username: string }) {
       return;
     }
 
-    router.push("/home");
+    router.push("/journal");
     router.refresh();
   }
 

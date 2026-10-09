@@ -15,7 +15,7 @@ export default async function SetPasswordPage() {
     redirect("/login");
   }
   if (!needsPasswordChange(session.user)) {
-    redirect("/home");
+    redirect("/journal");
   }
 
   return (

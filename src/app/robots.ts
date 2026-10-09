@@ -12,6 +12,7 @@ export default function robots(): MetadataRoute.Robots {
         "/conflicts",
         "/programs",
         "/meetings",
+        "/missions",
         "/journal",
         "/gallery",
         "/media/",

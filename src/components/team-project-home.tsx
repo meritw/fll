@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -131,6 +131,8 @@ type Props = {
     createdAt: Date | string;
     uploadedByName: string | null;
   }>;
+  /** Shown just above Step 1 (the collapsed Pybricks license). */
+  beforeSteps?: ReactNode;
 };
 
 export function TeamProjectHome({
@@ -140,6 +142,7 @@ export function TeamProjectHome({
   isCoach,
   commits,
   recentUploads,
+  beforeSteps,
 }: Props) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const noteInputRef = useRef<HTMLInputElement>(null);
@@ -352,6 +355,8 @@ export function TeamProjectHome({
           </AlertDescription>
         </Alert>
       ) : null}
+
+      {beforeSteps}
 
       <ol className="flex flex-col gap-6">
         <li className="flex flex-col gap-4 border-b border-border/80 pb-8">
@@ -571,7 +576,7 @@ export function TeamProjectHome({
           </p>
           <h2 className="mt-1 text-xl font-semibold">Download full Git repo</h2>
           <p className="mt-2 max-w-2xl text-muted-foreground">
-            Full team project with Git history (.git + working tree). Kids use Step 1 for the
+            Full team project with Git history (.git + working tree). Team members use Step 1 for the
             Pybricks files zip only.
           </p>
           {!storageReady ? (

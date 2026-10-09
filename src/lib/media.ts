@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { count, eq } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { meeting, meetingMedia } from "@/db/schema";
@@ -10,40 +10,6 @@ import {
   MAX_MEDIA_BYTES,
   type MediaContentType,
 } from "@/lib/storage";
-
-export type MeetingMediaItem = {
-  id: string;
-  meetingId: string;
-  contentType: string;
-  size: number;
-  caption: string | null;
-  fileName: string;
-  createdAt: Date;
-  uploaderName: string;
-  uploaderId: string;
-};
-
-export async function listMeetingMedia(meetingId: string): Promise<MeetingMediaItem[]> {
-  const rows = await getDb().query.meetingMedia.findMany({
-    where: (table, { eq: equals }) => equals(table.meetingId, meetingId),
-    orderBy: (table, { desc: orderDesc }) => [orderDesc(table.createdAt)],
-    with: {
-      uploader: { columns: { id: true, name: true } },
-    },
-  });
-
-  return rows.map((row) => ({
-    id: row.id,
-    meetingId: row.meetingId,
-    contentType: row.contentType,
-    size: row.size,
-    caption: row.caption,
-    fileName: row.fileName,
-    createdAt: row.createdAt,
-    uploaderName: row.uploader.name,
-    uploaderId: row.uploader.id,
-  }));
-}
 
 export async function listGalleryMedia(limit = 100) {
   const rows = await getDb().query.meetingMedia.findMany({
@@ -195,4 +161,35 @@ export async function attachMeetingMedia(input: {
   });
 
   return { id };
+}
+
+export async function countMedia() {
+  const [row] = await getDb().select({ value: count() }).from(meetingMedia);
+  return row?.value ?? 0;
+}
+
+/** Uploaders fix their own captions; coaches can fix any. */
+export async function updateMediaCaption(input: {
+  mediaId: string;
+  caption: string;
+  userId: string;
+  isCoach: boolean;
+}) {
+  const caption = input.caption.trim() || null;
+  if (caption && caption.length > 300) {
+    return { error: "Use a shorter caption." };
+  }
+  const [row] = await getDb()
+    .select({ uploaderId: meetingMedia.uploaderId, meetingId: meetingMedia.meetingId })
+    .from(meetingMedia)
+    .where(eq(meetingMedia.id, input.mediaId))
+    .limit(1);
+  if (!row) {
+    return { error: "That photo is missing." };
+  }
+  if (row.uploaderId !== input.userId && !input.isCoach) {
+    return { error: "Only the person who added it can change the caption." };
+  }
+  await getDb().update(meetingMedia).set({ caption }).where(eq(meetingMedia.id, input.mediaId));
+  return { ok: true as const, meetingId: row.meetingId };
 }

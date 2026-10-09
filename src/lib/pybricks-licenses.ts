@@ -135,7 +135,7 @@ export type LicenseForViewer = {
   seatIndex: number;
 };
 
-/** Stable per-user code after ensure/assignment. Kids only see their own. */
+/** Stable per-user code after ensure/assignment. Team members only see their own. */
 export async function getLicenseForUser(userId: string): Promise<LicenseForViewer | null> {
   await ensurePybricksLicenses();
 

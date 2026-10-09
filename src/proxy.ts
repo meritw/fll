@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionCookie } from "better-auth/cookies";
 
-const publicPaths = ["/", "/login", "/reset-password", "/api/auth", "/api/meetings.ics"];
+const publicPaths = ["/", "/login", "/reset-password", "/api/auth"];
 
 function isPublicPath(pathname: string) {
   if (pathname === "/") {
@@ -26,7 +26,7 @@ export function proxy(request: NextRequest) {
   }
 
   // Logged-in visitors hitting /login are handled by the login page
-  // (postAuthPath → /set-password, /set-name, /meetings, or /home).
+  // (postAuthPath → /set-password, /set-name, /journal, or /home).
 
   return NextResponse.next();
 }
