@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Bot, Star } from "lucide-react";
 import { cn } from "cn";
 
-import { MediaThumb } from "@/components/journal/media-thumb";
+import { MediaGroup } from "@/components/journal/media-group";
 import { StatusPill } from "@/components/journal/status-pill";
 import { entryHeadline, type JournalEntryItem } from "@/lib/journal";
 import { sessionHeadline, sessionLabel, type SessionRecord } from "@/lib/meetings";
@@ -122,7 +122,7 @@ function plural(count: number, one: string, many = `${one}s`) {
   return `${count} ${count === 1 ? one : many}`;
 }
 
-/** Full record of one meeting. `mediaLimit` shows a "+N more" tile after that many. */
+/** Full record of one meeting. `mediaLimit` shows a "+N more" tile after that many; every photo stays reachable in the lightbox. */
 export function SessionCard({
   record,
   students,
@@ -136,8 +136,6 @@ export function SessionCard({
 }) {
   const presentIds = new Set(record.attendees.map((person) => person.id));
   const away = students.filter((person) => !presentIds.has(person.id));
-  const media = mediaLimit != null ? record.media.slice(0, mediaLimit) : record.media;
-  const moreMedia = record.media.length - media.length;
   const uploaders = [...new Set(record.media.map((item) => item.uploaderName))];
   const counts = sessionCounts(record);
   const empty =
@@ -247,31 +245,20 @@ export function SessionCard({
       ) : null}
 
       {record.media.length > 0 ? (
-        <ul className="grid grid-cols-[repeat(auto-fill,minmax(130px,1fr))] gap-2">
-          {media.map((item) => (
-            <li key={item.id} className="flex flex-col gap-1">
-              <MediaThumb
-                id={item.id}
-                contentType={item.contentType}
-                caption={item.caption}
-                className="aspect-[4/3]"
-              />
-              {mediaLimit == null && item.caption?.trim() ? (
-                <span className="text-sm">{item.caption}</span>
-              ) : null}
-            </li>
-          ))}
-          {moreMedia > 0 ? (
-            <li>
-              <Link
-                href={`/journal/${record.id}#photos`}
-                className="flex aspect-[4/3] items-center justify-center rounded-xl bg-muted text-base font-semibold ring-1 ring-line hover:bg-foreground/10"
-              >
-                +{moreMedia} more
-              </Link>
-            </li>
-          ) : null}
-        </ul>
+        <MediaGroup
+          className="grid grid-cols-[repeat(auto-fill,minmax(130px,1fr))] gap-2"
+          visibleCount={mediaLimit}
+          showCaptions={mediaLimit == null}
+          items={record.media.map((item) => ({
+            id: item.id,
+            contentType: item.contentType,
+            caption: item.caption,
+            fallbackLabel: `${sessionLabel(record)} · ${sessionHeadline(record)}`,
+            detail: item.uploaderName,
+            // On the day's own page the link would go nowhere new.
+            link: showAddLink ? { href: `/journal/${record.id}`, label: sessionLabel(record) } : undefined,
+          }))}
+        />
       ) : null}
 
       {uploaders.length > 0 || counts.notes > 0 ? (

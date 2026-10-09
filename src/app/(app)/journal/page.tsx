@@ -4,7 +4,7 @@ import { Bot, Camera, CircleCheck, Pencil } from "lucide-react";
 import { cn } from "cn";
 
 import { JumpToMonth } from "@/components/journal/jump-to-month";
-import { MediaThumb } from "@/components/journal/media-thumb";
+import { MediaGroup } from "@/components/journal/media-group";
 import { SeasonCard, type SeasonPoint } from "@/components/journal/season-card";
 import { StatusBar, StatusPill } from "@/components/journal/status-pill";
 import {
@@ -477,18 +477,22 @@ export default async function JournalPage({ searchParams }: PageProps) {
                   All {mediaCount}
                 </Link>
               </div>
-              <ul className="grid grid-cols-3 gap-1.5">
-                {latestMedia.map((item) => (
-                  <li key={item.id}>
-                    <MediaThumb
-                      id={item.id}
-                      contentType={item.contentType}
-                      caption={item.caption}
-                      className="aspect-square rounded-lg"
-                    />
-                  </li>
-                ))}
-              </ul>
+<MediaGroup
+                className="grid grid-cols-3 gap-1.5"
+                thumbClassName="aspect-square rounded-lg"
+                items={latestMedia.map((item) => {
+                  const session =
+                    item.sessionNumber != null ? `Session ${item.sessionNumber}` : item.sessionTitle?.trim() || "Session";
+                  return {
+                    id: item.id,
+                    contentType: item.contentType,
+                    caption: item.caption,
+                    fallbackLabel: session,
+                    detail: item.uploaderName,
+                    link: { href: `/journal/${item.meetingId}`, label: session },
+                  };
+                })}
+              />
             </section>
           ) : null}
         </aside>
