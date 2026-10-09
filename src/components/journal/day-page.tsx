@@ -4,6 +4,7 @@ import { X } from "lucide-react";
 
 import { DayPicker } from "@/components/journal/day-picker";
 import { DayTabs, type DayTab, type Viewer } from "@/components/journal/day-tabs";
+import { StartPastMeetingForm } from "@/components/journal/start-past-meeting-form";
 import { SessionCard } from "@/components/journal/timeline";
 import { listStudents } from "@/lib/accounts";
 import {
@@ -39,18 +40,20 @@ export async function DayPage({
     role: isCoach(role) ? "coach" : isStudent(role) ? "student" : isParent(role) ? "parent" : "other",
   };
 
+  const today = todayKey();
   const [record, students, board, recent, upcomingNumber] = await Promise.all([
     meetingId ? getSessionRecord(meetingId) : Promise.resolve(null),
     listStudents(),
     listMissionBoard(),
     listSessionRecords(30),
-    meetingId ? Promise.resolve(null) : nextSessionNumber(),
+    nextSessionNumber(),
   ]);
   if (meetingId && !record) {
     notFound();
   }
 
-  const isToday = record ? record.dayKey === todayKey() : true;
+  const writer = viewer.role === "student" || viewer.role === "coach";
+  const isToday = record ? record.dayKey === today : true;
   const heading = record
     ? `${formatTeamDay(record.startsAt)} · ${sessionLabel(record)}`
     : `Today · Session ${upcomingNumber}`;
@@ -90,6 +93,10 @@ export async function DayPage({
           <X className="size-5" aria-hidden />
         </Link>
       </div>
+
+      {writer ? (
+        <StartPastMeetingForm todayKey={today} defaultSessionNumber={upcomingNumber} />
+      ) : null}
 
       <DayTabs
         meetingId={record?.id ?? null}

@@ -285,29 +285,76 @@ export async function nextSessionNumber() {
  * people starting it at the same moment end up on the same meeting.
  */
 export async function ensureTodayMeeting(userId: string) {
-  const dayKey = todayKey();
-  const existing = await findMeetingForDay(dayKey);
-  if (existing) {
-    return { id: existing.id, created: false };
+  return ensureMeetingForDay({ userId, dayKey: todayKey() });
+}
+
+/**
+ * Open or create the meeting for a team-time-zone day (today or earlier).
+ * Past days use that evening's wall clock; today uses "now". Optional
+ * `sessionNumber` is used only when creating a new row.
+ */
+export type EnsureMeetingResult =
+  | { ok: true; id: string; created: boolean }
+  | { ok: false; error: string };
+
+export async function ensureMeetingForDay(input: {
+  userId: string;
+  dayKey: string;
+  sessionNumber?: number;
+}): Promise<EnsureMeetingResult> {
+  const dayKey = input.dayKey.trim();
+  const parsed = parseTeamDateKey(dayKey);
+  if (!parsed) {
+    return { ok: false, error: "Pick a valid date." };
   }
 
-  const now = new Date();
+  const today = todayKey();
+  if (dayKey > today) {
+    return { ok: false, error: "Pick today or an earlier day." };
+  }
+
+  const existing = await findMeetingForDay(dayKey);
+  if (existing) {
+    return { ok: true, id: existing.id, created: false };
+  }
+
+  let sessionNumber: number;
+  if (
+    typeof input.sessionNumber === "number" &&
+    Number.isFinite(input.sessionNumber) &&
+    input.sessionNumber >= 1
+  ) {
+    sessionNumber = Math.floor(input.sessionNumber);
+  } else {
+    sessionNumber = await nextSessionNumber();
+  }
+
+  let startsAt: Date;
+  let endsAt: Date;
+  if (dayKey === today) {
+    startsAt = new Date();
+    endsAt = new Date(startsAt.getTime() + LIVE_MEETING_HOURS * 60 * 60 * 1000);
+  } else {
+    startsAt = zonedDateTime(parsed.year, parsed.month, parsed.day, 18, 0);
+    endsAt = zonedDateTime(parsed.year, parsed.month, parsed.day, 20, 0);
+  }
+
   const id = crypto.randomUUID();
   const inserted = await getDb()
     .insert(meeting)
     .values({
       id,
       dayKey,
-      startsAt: now,
-      endsAt: new Date(now.getTime() + LIVE_MEETING_HOURS * 60 * 60 * 1000),
+      startsAt,
+      endsAt,
       title: DEFAULT_TITLE,
-      sessionNumber: await nextSessionNumber(),
-      createdById: userId,
+      sessionNumber,
+      createdById: input.userId,
     })
     .onConflictDoNothing({ target: meeting.dayKey })
     .returning({ id: meeting.id });
   if (inserted.length > 0) {
-    return { id, created: true };
+    return { ok: true, id, created: true };
   }
 
   const [winner] = await getDb()
@@ -315,7 +362,10 @@ export async function ensureTodayMeeting(userId: string) {
     .from(meeting)
     .where(eq(meeting.dayKey, dayKey))
     .limit(1);
-  return { id: winner.id, created: false };
+  if (!winner) {
+    return { ok: false, error: "Could not open that day." };
+  }
+  return { ok: true, id: winner.id, created: false };
 }
 
 export async function meetingExists(id: string) {

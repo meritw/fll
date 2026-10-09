@@ -19,6 +19,7 @@ import { attachMeetingMedia, updateMediaCaption } from "@/lib/media";
 import { VAGUE_EMAIL_MESSAGE } from "@/lib/messages";
 import {
   addMeetingNote,
+  ensureMeetingForDay,
   ensureTodayMeeting,
   findTodayMeeting,
   setAttendance,
@@ -315,8 +316,55 @@ export async function startTodayMeeting() {
     redirect("/journal");
   }
   const result = await ensureTodayMeeting(session.user.id);
+  if (!result.ok) {
+    redirect("/journal");
+  }
   revalidateJournal(result.id);
   redirect(`/journal/${result.id}`);
+}
+
+/**
+ * Open or create a meeting for a chosen day (today or earlier), with an optional
+ * session number when creating. Used to backfill old journal days after the
+ * calendar was removed.
+ */
+export async function startMeetingForDay(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const session = await requireUser();
+  if (!canWriteNotebook(session.user.role)) {
+    return { error: NOT_FOR_PARENTS };
+  }
+
+  const dayKey = String(formData.get("dayKey") ?? "").trim();
+  const sessionRaw = String(formData.get("sessionNumber") ?? "").trim();
+  const sessionNumber = sessionRaw ? Number(sessionRaw) : undefined;
+  if (sessionRaw && (!Number.isFinite(sessionNumber) || (sessionNumber ?? 0) < 1)) {
+    return { error: "Session number must be 1 or higher." };
+  }
+
+  const result = await ensureMeetingForDay({
+    userId: session.user.id,
+    dayKey,
+    sessionNumber,
+  });
+  if (!result.ok) {
+    return { error: result.error };
+  }
+  revalidateJournal(result.id);
+  redirect(`/journal/${result.id}`);
+}
+
+async function requireTodayMeeting(userId: string): Promise<{ id: string } | { error: string }> {
+  const result = await ensureTodayMeeting(userId);
+  if (!result.ok) {
+    return { error: result.error };
+  }
+  if (result.created) {
+    revalidateJournal(result.id);
+  }
+  return { id: result.id };
 }
 
 /** Today's meeting id for uploads, starting the meeting if needed. */
@@ -328,11 +376,7 @@ export async function ensureTodayMeetingId(): Promise<{ id: string } | { error: 
       ? { id: today.id }
       : { error: "There's no meeting today yet. Pick a meeting day above." };
   }
-  const result = await ensureTodayMeeting(session.user.id);
-  if (result.created) {
-    revalidateJournal(result.id);
-  }
-  return { id: result.id };
+  return requireTodayMeeting(session.user.id);
 }
 
 export type AutoSaveResult = { error: string } | { ok: true; meetingId?: string; message: string };
@@ -347,7 +391,14 @@ export async function toggleAttendance(input: {
   if (!canWriteNotebook(session.user.role)) {
     return { error: NOT_FOR_PARENTS };
   }
-  const meetingId = input.meetingId ?? (await ensureTodayMeeting(session.user.id)).id;
+  let meetingId = input.meetingId;
+  if (!meetingId) {
+    const started = await requireTodayMeeting(session.user.id);
+    if ("error" in started) {
+      return { error: started.error };
+    }
+    meetingId = started.id;
+  }
   const result = await setAttendance({
     meetingId,
     userId: input.userId,
@@ -390,7 +441,11 @@ export async function postDayNote(input: {
   } else if (input.meetingId) {
     meetingId = input.meetingId;
   } else if (writer) {
-    meetingId = (await ensureTodayMeeting(session.user.id)).id;
+    const started = await requireTodayMeeting(session.user.id);
+    if ("error" in started) {
+      return { error: started.error };
+    }
+    meetingId = started.id;
   } else {
     meetingId = (await findTodayMeeting())?.id ?? null;
   }
