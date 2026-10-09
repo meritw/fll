@@ -217,7 +217,9 @@ export function sessionHeadline(record: SessionRecord) {
   if (title && title !== DEFAULT_TITLE) {
     return title;
   }
-  const first = record.progress[0]?.body.trim().split("\n")[0];
+  // Older meetings often only have general notes, so fall back to those.
+  const other = record.otherNotes[0];
+  const first = (record.progress[0]?.body ?? other?.title ?? other?.body)?.trim().split("\n")[0];
   if (first) {
     return first.length > 90 ? `${first.slice(0, 87).trimEnd()}…` : first;
   }

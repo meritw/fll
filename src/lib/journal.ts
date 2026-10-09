@@ -21,6 +21,7 @@ export async function listJournalEntries() {
     title: row.title,
     body: row.body,
     milestone: row.milestone,
+    fromHome: row.fromHome,
     createdAt: row.createdAt,
     authorName: row.author.name,
     authorId: row.author.id,
@@ -46,6 +47,7 @@ export async function createJournalEntry(input: {
   title?: string;
   relatedMeetingId?: string | null;
   milestone?: boolean;
+  fromHome?: boolean;
 }) {
   const body = input.body.trim();
   if (!body) {
@@ -73,6 +75,7 @@ export async function createJournalEntry(input: {
     authorId: input.authorId,
     relatedMeetingId,
     milestone: Boolean(input.milestone),
+    fromHome: Boolean(input.fromHome) && !relatedMeetingId,
   });
 
   return { id };

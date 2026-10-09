@@ -405,6 +405,7 @@ export async function postDayNote(input: {
       body: input.body,
       relatedMeetingId: meetingId,
       milestone: input.milestone,
+      fromHome: input.meetingId === "home",
     });
     if ("error" in result) {
       return { error: result.error ?? "That didn't save. Try again." };

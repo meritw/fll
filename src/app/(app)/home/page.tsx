@@ -13,8 +13,8 @@ export const metadata: Metadata = {
 };
 
 /**
- * The guided zip workflow comes first; the Pybricks license sits collapsed below it
- * so team members aren't sidetracked while following the steps.
+ * The Pybricks license sits just above Step 1, collapsed so team members can find
+ * it without being sidetracked while following the steps.
  * Parents do not use coding tools — send them to the Journal.
  */
 export default async function HomeWorkspacePage() {
@@ -37,11 +37,13 @@ export default async function HomeWorkspacePage() {
         isCoach={isCoach(session.user.role)}
         commits={summary.commits}
         recentUploads={summary.recentUploads}
-      />
-      <PybricksLicensePanel
-        code={license?.code ?? null}
-        isCoachReserved={license?.seatKind === "coach_reserved"}
-        viewerName={session.user.name}
+        beforeSteps={
+          <PybricksLicensePanel
+            code={license?.code ?? null}
+            isCoachReserved={license?.seatKind === "coach_reserved"}
+            viewerName={session.user.name}
+          />
+        }
       />
     </div>
   );

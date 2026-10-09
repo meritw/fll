@@ -220,6 +220,8 @@ export const journalEntry = pgTable(
       onDelete: "set null",
     }),
     milestone: boolean("milestone").notNull().default(false),
+    // Set only when the writer said so ("I'm writing this from home").
+    fromHome: boolean("from_home").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => [index("journal_entry_created_at_idx").on(table.createdAt)],

@@ -8,7 +8,7 @@ import { MediaThumb } from "@/components/journal/media-thumb";
 import { SeasonCard, type SeasonPoint } from "@/components/journal/season-card";
 import { StatusBar, StatusPill } from "@/components/journal/status-pill";
 import {
-  HomeNoteCard,
+  LooseNoteCard,
   MilestoneCard,
   SessionCard,
   SessionSummaryCard,
@@ -103,7 +103,7 @@ export default async function JournalPage({ searchParams }: PageProps) {
   const upcomingNumber = today ? null : await nextSessionNumber();
   const todayDay = todayKey();
 
-  // Timeline: meetings, milestones, and notes written away from a meeting.
+  // Timeline: meetings, milestones, and notes not tied to a meeting.
   const all: Item[] = [
     ...records.map((record): Item => ({ kind: "session", at: record.startsAt, record })),
     ...entries
@@ -333,7 +333,7 @@ export default async function JournalPage({ searchParams }: PageProps) {
                   if (item.kind === "note") {
                     return (
                       <TimelineRow key={`note-${item.entry.id}`} date={item.at} last={last}>
-                        <HomeNoteCard entry={item.entry} />
+                        <LooseNoteCard entry={item.entry} />
                       </TimelineRow>
                     );
                   }

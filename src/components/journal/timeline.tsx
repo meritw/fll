@@ -297,7 +297,8 @@ export function SessionSummaryCard({
   studentCount: number;
 }) {
   const counts = sessionCounts(record);
-  const summary = record.progress[0]?.body ?? record.lessons[0]?.body ?? null;
+  const summary =
+    record.progress[0]?.body ?? record.lessons[0]?.body ?? record.otherNotes[0]?.body ?? null;
   const facts = [
     record.attendees.length > 0
       ? `${record.attendees.length} of ${studentCount || record.attendees.length} here`
@@ -362,12 +363,14 @@ export function MilestoneCard({
   );
 }
 
-/** A note written away from a meeting. */
-export function HomeNoteCard({ entry }: { entry: JournalEntryItem }) {
+/** A note not tied to a meeting: written from home, or saved without picking a meeting. */
+export function LooseNoteCard({ entry }: { entry: JournalEntryItem }) {
   return (
     <article className="flex flex-col gap-2 rounded-3xl bg-card p-4 ring-1 ring-line sm:p-5">
       <div className="flex flex-wrap items-center gap-2">
-        <Pill className="bg-info-tint text-info-ink">Note from home</Pill>
+        <Pill className="bg-info-tint text-info-ink">
+          {entry.fromHome ? "Note from home" : "Note"}
+        </Pill>
         <span className="text-base text-muted-foreground">
           {entry.authorName} · {formatTime(entry.createdAt)}
         </span>
