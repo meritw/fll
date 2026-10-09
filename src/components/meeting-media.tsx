@@ -176,6 +176,7 @@ export function MeetingMediaSection({
                   <video
                     src={`/media/${item.id}`}
                     controls
+                    playsInline
                     preload="metadata"
                     className="max-h-80 w-full bg-black"
                   />

@@ -167,10 +167,25 @@ export async function listPeople() {
   }));
 }
 
-/** Students only — for Attendance roster (never parents or coaches). */
+/** Kids only — attendance roster (excludes coaches, parents, and any non-student roles). */
 export async function listStudents() {
-  const people = await listPeople();
-  return people.filter((person) => isStudent(person.role));
+  const rows = await getDb()
+    .select({
+      id: user.id,
+      name: user.name,
+      username: user.username,
+      role: user.role,
+    })
+    .from(user)
+    .where(eq(user.role, "student"))
+    .orderBy(asc(user.name));
+
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    username: row.username ?? "",
+    role: row.role,
+  }));
 }
 
 export async function resetStudentPassword(userId: string, password: string) {

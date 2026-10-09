@@ -181,17 +181,15 @@ export function AttendanceForm({
   selectedIds: string[];
 }) {
   const [state, formAction, pending] = useActionState(recordMeetingAttendance, initialState);
-  const initial = useMemo(() => new Set(selectedIds), [selectedIds]);
+  const rosterIds = useMemo(() => new Set(people.map((person) => person.id)), [people]);
+  const initial = useMemo(
+    () => new Set(selectedIds.filter((id) => rosterIds.has(id))),
+    [selectedIds, rosterIds],
+  );
   const [checked, setChecked] = useState<Set<string>>(initial);
 
   const sorted = useMemo(
-    () =>
-      [...people].sort((left, right) => {
-        if (left.role !== right.role) {
-          return left.role === "student" ? -1 : 1;
-        }
-        return left.name.localeCompare(right.name);
-      }),
+    () => [...people].sort((left, right) => left.name.localeCompare(right.name)),
     [people],
   );
 
@@ -212,7 +210,7 @@ export function AttendanceForm({
       <input type="hidden" name="meetingId" value={meetingId} />
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-2xl font-semibold">Attendance</h2>
-        <p className="text-muted-foreground">Check who was here, then save.</p>
+        <p className="text-muted-foreground">Check which students were here, then save.</p>
       </div>
       <ul className="flex flex-wrap gap-2">
         {sorted.map((person) => {

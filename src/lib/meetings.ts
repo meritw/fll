@@ -232,8 +232,10 @@ export async function getMeeting(id: string) {
     seedKey: row.seedKey,
     attendanceRecordedAt: row.attendanceRecordedAt,
     attendanceRecordedBy: row.attendanceRecordedBy,
+    // Attendance UI is students-only; keep non-student rows in DB but hide them.
     attendees: row.attendees
       .map((item) => item.user)
+      .filter((person) => person.role === "student")
       .sort((left, right) => left.name.localeCompare(right.name)),
     notes,
     progress: notes.filter((note) => note.kind === "progress"),
@@ -318,20 +320,36 @@ export async function saveAttendance(input: {
     return { error: "That meeting is missing." };
   }
 
-  // Attendance roster is students only — never parents or coaches.
+  // Only students may be marked present. Coaches/parents (and other roles) are ignored.
   const unique = [...new Set(input.attendeeIds.filter(Boolean))];
   let allowed: string[] = [];
   if (unique.length > 0) {
     const rows = await getDb()
-      .select({ id: user.id, role: user.role })
+      .select({ id: user.id })
       .from(user)
-      .where(inArray(user.id, unique));
-    allowed = rows.filter((row) => row.role === "student").map((row) => row.id);
+      .where(and(inArray(user.id, unique), eq(user.role, "student")));
+    allowed = rows.map((row) => row.id);
   }
 
   const recordedAt = new Date();
   await getDb().transaction(async (tx) => {
-    await tx.delete(meetingAttendee).where(eq(meetingAttendee.meetingId, input.meetingId));
+    // Replace student rows only — leave any historical non-student checkmarks untouched.
+    const priorStudents = await tx
+      .select({ userId: meetingAttendee.userId })
+      .from(meetingAttendee)
+      .innerJoin(user, eq(meetingAttendee.userId, user.id))
+      .where(and(eq(meetingAttendee.meetingId, input.meetingId), eq(user.role, "student")));
+    if (priorStudents.length > 0) {
+      await tx.delete(meetingAttendee).where(
+        and(
+          eq(meetingAttendee.meetingId, input.meetingId),
+          inArray(
+            meetingAttendee.userId,
+            priorStudents.map((row) => row.userId),
+          ),
+        ),
+      );
+    }
     if (allowed.length > 0) {
       await tx.insert(meetingAttendee).values(
         allowed.map((userId) => ({
@@ -508,7 +526,10 @@ export async function listNotebookSessions(limit = 40) {
     orderBy: (table, { desc: orderDesc }) => [orderDesc(table.startsAt)],
     with: {
       notes: { columns: { kind: true } },
-      attendees: { columns: { userId: true } },
+      attendees: {
+        columns: { userId: true },
+        with: { user: { columns: { role: true } } },
+      },
       media: { columns: { id: true } },
       journalEntries: { columns: { id: true } },
     },
@@ -521,13 +542,16 @@ export async function listNotebookSessions(limit = 40) {
       const progressCount = row.notes.filter((note) => note.kind === "progress").length;
       const actionCount = row.notes.filter((note) => note.kind === "action").length;
       const lessonCount = row.notes.filter((note) => note.kind === "lesson").length;
+      const studentAttendeeCount = row.attendees.filter(
+        (item) => item.user.role === "student",
+      ).length;
       return {
         id: row.id,
         startsAt: row.startsAt,
         endsAt: row.endsAt,
         title: row.title,
         sessionNumber: row.sessionNumber,
-        attendeeCount: row.attendees.length,
+        attendeeCount: studentAttendeeCount,
         progressCount,
         actionCount,
         lessonCount,
