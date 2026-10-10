@@ -335,10 +335,39 @@ export function SessionSummaryCard({
   );
 }
 
+function EntryMediaGrid({
+  media,
+  light,
+}: {
+  media: { id: string; contentType: string; caption: string | null }[];
+  light?: boolean;
+}) {
+  if (media.length === 0) return null;
+  return (
+    <ul className="mt-1 grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-2">
+      {media.map((item) => (
+        <li key={item.id} className="flex flex-col gap-1">
+          <MediaThumb
+            id={item.id}
+            contentType={item.contentType}
+            caption={item.caption}
+            className={cn("aspect-[4/3]", light ? "ring-white/30" : undefined)}
+          />
+          {item.caption?.trim() ? (
+            <span className={cn("text-sm", light ? "text-milestone-soft" : undefined)}>
+              {item.caption}
+            </span>
+          ) : null}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export function MilestoneCard({
   entry,
 }: {
-  entry: Pick<JournalEntryItem, "title" | "body" | "relatedMeeting" | "authorName">;
+  entry: Pick<JournalEntryItem, "title" | "body" | "relatedMeeting" | "authorName" | "media">;
 }) {
   const headline = entryHeadline(entry);
   const rest = entry.title?.trim()
@@ -356,6 +385,7 @@ export function MilestoneCard({
         </span>
         <h3 className="text-xl leading-snug font-bold sm:text-2xl">{headline}</h3>
         {rest ? <p className="whitespace-pre-wrap text-milestone-soft">{rest}</p> : null}
+        <EntryMediaGrid media={entry.media ?? []} light />
         <span className="text-sm text-milestone-soft">{entry.authorName}</span>
         {entry.relatedMeeting ? (
           <Link
@@ -384,6 +414,46 @@ export function LooseNoteCard({ entry }: { entry: JournalEntryItem }) {
       </div>
       {entry.title ? <h3 className="text-xl font-semibold">{entry.title}</h3> : null}
       <p className="text-lg whitespace-pre-wrap">{entry.body}</p>
+      <EntryMediaGrid media={entry.media} />
+    </article>
+  );
+}
+
+/** Photos/videos uploaded from home without a note body. */
+export function HomeMediaCard({
+  items,
+}: {
+  items: {
+    id: string;
+    contentType: string;
+    caption: string | null;
+    uploaderName: string;
+    createdAt: Date;
+  }[];
+}) {
+  if (items.length === 0) return null;
+  const uploaders = [...new Set(items.map((item) => item.uploaderName))];
+  return (
+    <article className="flex flex-col gap-3 rounded-3xl bg-card p-4 ring-1 ring-line sm:p-5">
+      <div className="flex flex-wrap items-center gap-2">
+        <Pill className="bg-info-tint text-info-ink">From home</Pill>
+        <span className="text-base text-muted-foreground">
+          {uploaders.join(", ")} · {formatTime(items[0].createdAt)}
+        </span>
+      </div>
+      <ul className="grid grid-cols-[repeat(auto-fill,minmax(130px,1fr))] gap-2">
+        {items.map((item) => (
+          <li key={item.id} className="flex flex-col gap-1">
+            <MediaThumb
+              id={item.id}
+              contentType={item.contentType}
+              caption={item.caption}
+              className="aspect-[4/3]"
+            />
+            {item.caption?.trim() ? <span className="text-sm">{item.caption}</span> : null}
+          </li>
+        ))}
+      </ul>
     </article>
   );
 }

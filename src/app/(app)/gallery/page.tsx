@@ -50,15 +50,19 @@ export default async function GalleryPage({ searchParams }: PageProps) {
         items={pageItems.map((item) => ({
           id: item.id,
           meetingId: item.meetingId,
+          fromHome: item.fromHome,
           contentType: item.contentType,
           caption: item.caption,
           uploaderName: item.uploaderName,
           createdLabel: stamp(item.createdAt),
-          sessionLabel:
-            item.sessionNumber != null
+          sessionLabel: item.fromHome
+            ? "From home"
+            : item.sessionNumber != null
               ? `Session ${item.sessionNumber}`
               : item.sessionTitle?.trim() || "Session",
-          sessionDay: formatTeamDay(item.sessionStartsAt),
+          sessionDay: item.sessionStartsAt
+            ? formatTeamDay(item.sessionStartsAt)
+            : formatTeamDay(item.createdAt),
         }))}
       />
 

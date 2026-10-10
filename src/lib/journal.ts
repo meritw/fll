@@ -14,6 +14,10 @@ export async function listJournalEntries() {
       relatedMeeting: {
         columns: { id: true, startsAt: true, title: true, sessionNumber: true },
       },
+      media: {
+        orderBy: (table, { desc: orderDesc }) => [orderDesc(table.createdAt)],
+        with: { uploader: { columns: { id: true, name: true } } },
+      },
     },
   });
 
@@ -27,6 +31,14 @@ export async function listJournalEntries() {
     authorName: row.author.name,
     authorId: row.author.id,
     relatedMeeting: row.relatedMeeting,
+    media: row.media.map((item) => ({
+      id: item.id,
+      contentType: item.contentType,
+      caption: item.caption,
+      createdAt: item.createdAt,
+      uploaderName: item.uploader.name,
+      uploaderId: item.uploader.id,
+    })),
   }));
 }
 
