@@ -61,7 +61,7 @@ export function TimelineRow({
   children: React.ReactNode;
 }) {
   return (
-    <li className="flex gap-3 pb-7 sm:gap-4">
+    <li className="flex gap-3 pb-7 [content-visibility:auto] [contain-intrinsic-size:auto_280px] sm:gap-4">
       <DateRail date={date} last={last} />
       <div className="min-w-0 flex-1">{children}</div>
     </li>
@@ -279,19 +279,26 @@ export function SessionCard({
 export function SessionSummaryCard({
   record,
   studentCount,
+  /** Prefer explicit counts so the parent can omit heavy media/note arrays from the RSC payload. */
+  mediaCount,
+  noteCount,
 }: {
   record: SessionRecord;
   studentCount: number;
+  mediaCount?: number;
+  noteCount?: number;
 }) {
   const counts = sessionCounts(record);
+  const notes = noteCount ?? counts.notes;
+  const media = mediaCount ?? counts.media;
   const summary =
     record.progress[0]?.body ?? record.lessons[0]?.body ?? record.otherNotes[0]?.body ?? null;
   const facts = [
     record.attendees.length > 0
       ? `${record.attendees.length} of ${studentCount || record.attendees.length} here`
       : null,
-    counts.notes > 0 ? plural(counts.notes, "note") : null,
-    counts.media > 0 ? plural(counts.media, "photo") : null,
+    notes > 0 ? plural(notes, "note") : null,
+    media > 0 ? plural(media, "photo") : null,
     record.robot.length > 0 ? plural(record.robot.length, "robot update") : null,
   ].filter(Boolean);
   const headline = sessionHeadline(record);
@@ -315,10 +322,37 @@ export function SessionSummaryCard({
   );
 }
 
+function EntryMediaGrid({
+  media,
+  label,
+  light,
+}: {
+  media: { id: string; contentType: string; caption: string | null }[];
+  /** Read out in the lightbox when a photo has no caption. */
+  label: string;
+  light?: boolean;
+}) {
+  if (media.length === 0) return null;
+  return (
+    <MediaGroup
+      className="mt-1 grid grid-cols-[repeat(auto-fill,minmax(120px,1fr))] gap-2"
+      thumbClassName={cn("aspect-[4/3]", light ? "ring-white/30" : undefined)}
+      captionClassName={light ? "text-milestone-soft" : undefined}
+      showCaptions
+      items={media.map((item) => ({
+        id: item.id,
+        contentType: item.contentType,
+        caption: item.caption,
+        fallbackLabel: label,
+      }))}
+    />
+  );
+}
+
 export function MilestoneCard({
   entry,
 }: {
-  entry: Pick<JournalEntryItem, "title" | "body" | "relatedMeeting" | "authorName">;
+  entry: Pick<JournalEntryItem, "title" | "body" | "relatedMeeting" | "authorName" | "media">;
 }) {
   const headline = entryHeadline(entry);
   const rest = entry.title?.trim()
@@ -336,6 +370,7 @@ export function MilestoneCard({
         </span>
         <h3 className="text-xl leading-snug font-bold sm:text-2xl">{headline}</h3>
         {rest ? <p className="whitespace-pre-wrap text-milestone-soft">{rest}</p> : null}
+        <EntryMediaGrid media={entry.media ?? []} label={headline} light />
         <span className="text-sm text-milestone-soft">{entry.authorName}</span>
         {entry.relatedMeeting ? (
           <Link
@@ -364,6 +399,44 @@ export function LooseNoteCard({ entry }: { entry: JournalEntryItem }) {
       </div>
       {entry.title ? <h3 className="text-xl font-semibold">{entry.title}</h3> : null}
       <p className="text-lg whitespace-pre-wrap">{entry.body}</p>
+      <EntryMediaGrid media={entry.media} label={entry.title?.trim() || "Journal note"} />
+    </article>
+  );
+}
+
+/** Photos/videos uploaded from home without a note body. */
+export function HomeMediaCard({
+  items,
+}: {
+  items: {
+    id: string;
+    contentType: string;
+    caption: string | null;
+    uploaderName: string;
+    createdAt: Date;
+  }[];
+}) {
+  if (items.length === 0) return null;
+  const uploaders = [...new Set(items.map((item) => item.uploaderName))];
+  return (
+    <article className="flex flex-col gap-3 rounded-3xl bg-card p-4 ring-1 ring-line sm:p-5">
+      <div className="flex flex-wrap items-center gap-2">
+        <Pill className="bg-info-tint text-info-ink">From home</Pill>
+        <span className="text-base text-muted-foreground">
+          {uploaders.join(", ")} · {formatTime(items[0].createdAt)}
+        </span>
+      </div>
+      <MediaGroup
+        className="grid grid-cols-[repeat(auto-fill,minmax(130px,1fr))] gap-2"
+        showCaptions
+        items={items.map((item) => ({
+          id: item.id,
+          contentType: item.contentType,
+          caption: item.caption,
+          fallbackLabel: "From home",
+          detail: item.uploaderName,
+        }))}
+      />
     </article>
   );
 }

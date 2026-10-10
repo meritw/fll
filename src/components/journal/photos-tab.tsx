@@ -8,7 +8,12 @@ import type { Viewer } from "@/components/journal/day-tabs";
 import { MediaThumb } from "@/components/journal/media-thumb";
 import { MediaLightbox } from "@/components/media-lightbox";
 import { SaveStatus, type SaveState } from "@/components/journal/save-status";
-import { MEDIA_ACCEPT, resolveContentType, uploadMeetingMedia } from "@/components/journal/upload-media";
+import {
+  HOME_UPLOAD_SCOPE,
+  MEDIA_ACCEPT,
+  resolveContentType,
+  uploadMeetingMedia,
+} from "@/components/journal/upload-media";
 import { saveMediaCaption } from "@/lib/actions";
 
 export type ExistingMedia = {
@@ -34,14 +39,17 @@ type Upload = {
 export function PhotosTab({
   viewer,
   existing,
+  isToday,
   ensureMeeting,
   onSaved,
 }: {
   viewer: Viewer;
   existing: ExistingMedia[];
+  isToday: boolean;
   ensureMeeting: () => Promise<string>;
   onSaved: (meetingId: string | undefined) => void;
 }) {
+  const [fromHome, setFromHome] = useState(false);
   const [uploads, setUploads] = useState<Upload[]>([]);
   /** Index into `earlier` shown in the lightbox, or null. */
   const [viewing, setViewing] = useState<number | null>(null);
@@ -85,12 +93,16 @@ export function PhotosTab({
     ]);
 
     let target: string;
-    try {
-      target = await ensureMeeting();
-    } catch (error) {
-      const text = error instanceof Error ? error.message : "That didn't save. Try again.";
-      for (const item of added) patch(item.key, { state: "error", error: text });
-      return;
+    if (fromHome) {
+      target = HOME_UPLOAD_SCOPE;
+    } else {
+      try {
+        target = await ensureMeeting();
+      } catch (error) {
+        const text = error instanceof Error ? error.message : "That didn't save. Try again.";
+        for (const item of added) patch(item.key, { state: "error", error: text });
+        return;
+      }
     }
 
     // One at a time keeps phones on slow connections from stalling.
@@ -108,7 +120,7 @@ export function PhotosTab({
         patch(item.key, { state: "error", error: "The file did not upload. Try again." });
       }
     }
-    onSaved(target);
+    onSaved(fromHome ? undefined : target);
   }
 
   const doneIds = new Set(uploads.map((item) => item.mediaId).filter(Boolean));
@@ -134,6 +146,18 @@ export function PhotosTab({
           className="sr-only"
         />
       </label>
+
+      {isToday || fromHome ? (
+        <label className="flex min-h-11 items-center gap-3 text-base">
+          <input
+            type="checkbox"
+            checked={fromHome}
+            onChange={(event) => setFromHome(event.target.checked)}
+            className="size-5 accent-primary"
+          />
+          I&apos;m adding this from home, not at a meeting.
+        </label>
+      ) : null}
 
       {uploads.length > 0 ? (
         <ul className="flex flex-col gap-3" aria-label="Your uploads">
@@ -162,8 +186,9 @@ export function PhotosTab({
       ) : null}
 
       <p className="text-base text-foreground/80">
-        Photos and videos go into the journal as soon as they finish uploading. Captions are
-        optional. Everyone on the team can see these.
+        {fromHome
+          ? "Photos and videos from home go on the journal timeline and gallery as soon as they finish uploading. Captions are optional."
+          : "Photos and videos go into the journal as soon as they finish uploading. Captions are optional. Everyone on the team can see these."}
       </p>
 
       {earlier.length > 0 ? (

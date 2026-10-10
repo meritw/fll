@@ -1,6 +1,8 @@
 import { Play } from "lucide-react";
 import { cn } from "cn";
 
+import { LazyVideo } from "@/components/lazy-video";
+
 export function isImage(contentType: string) {
   return contentType.startsWith("image/");
 }
@@ -10,8 +12,9 @@ export function isVideo(contentType: string) {
 }
 
 /**
- * A photo or video from the auth-gated /media route. With `onOpen` the tile is a button
- * (videos show a still and a play badge) that opens the lightbox; without it, videos play in place.
+ * A photo or video from the auth-gated /media route. With `onOpen` the tile is a button that
+ * opens the lightbox; without it, videos load only after a tap and play in place. Video tiles
+ * never create a <video> until played: iOS Safari struggles with many of them on one page.
  */
 export function MediaThumb({
   id,
@@ -38,6 +41,7 @@ export function MediaThumb({
         className={cn(
           box,
           "group relative block w-full focus-visible:ring-3 focus-visible:ring-ring focus-visible:outline-none",
+          isVideo(contentType) && "bg-black",
         )}
       >
         {isImage(contentType) ? (
@@ -47,24 +51,15 @@ export function MediaThumb({
             src={`/media/${id}`}
             alt=""
             loading="lazy"
+            decoding="async"
             className="size-full object-cover transition-transform duration-200 group-hover:scale-[1.03]"
           />
         ) : (
-          <>
-            {/* #t= nudges iOS to paint the first frame as a preview. */}
-            <video
-              src={`/media/${id}#t=0.1`}
-              muted
-              playsInline
-              preload="metadata"
-              className="size-full bg-black object-cover"
-            />
-            <span className="absolute inset-0 flex items-center justify-center">
-              <span className="flex size-11 items-center justify-center rounded-full bg-black/55 text-white transition-transform group-hover:scale-110">
-                <Play className="ml-0.5 size-5 fill-white" aria-hidden />
-              </span>
+          <span className="flex size-full items-center justify-center">
+            <span className="inline-flex size-12 items-center justify-center rounded-full bg-white/25 ring-1 ring-white/50 transition-transform group-hover:scale-110">
+              <Play className="ml-0.5 size-6 fill-white text-white" aria-hidden />
             </span>
-          </>
+          </span>
         )}
       </button>
     );
@@ -75,25 +70,20 @@ export function MediaThumb({
       <div className={box}>
         {/* Auth-gated app route; not a public CDN URL. */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={`/media/${id}`} alt={label} loading="lazy" className="size-full object-cover" />
+        <img
+          src={`/media/${id}`}
+          alt={label}
+          loading="lazy"
+          decoding="async"
+          className="size-full object-cover"
+        />
       </div>
     );
   }
   if (isVideo(contentType)) {
     return (
       <div className={cn(box, "relative bg-black")}>
-        <video
-          src={`/media/${id}`}
-          controls
-          playsInline
-          preload="metadata"
-          aria-label={label}
-          className="size-full object-contain"
-        />
-        <Play
-          className="pointer-events-none absolute top-2 left-2 size-5 fill-white text-white drop-shadow"
-          aria-hidden
-        />
+        <LazyVideo src={`/media/${id}`} label={label} className="size-full" />
       </div>
     );
   }

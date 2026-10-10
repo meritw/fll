@@ -8,6 +8,7 @@ import { MediaGroup } from "@/components/journal/media-group";
 import { SeasonCard, type SeasonPoint } from "@/components/journal/season-card";
 import { StatusBar, StatusPill } from "@/components/journal/status-pill";
 import {
+  HomeMediaCard,
   LooseNoteCard,
   MilestoneCard,
   SessionCard,
@@ -23,7 +24,7 @@ import {
   listSeasonEvents,
   type JournalEntryItem,
 } from "@/lib/journal";
-import { countMedia, listGalleryMedia } from "@/lib/media";
+import { countMedia, listGalleryMedia, listOrphanHomeMedia } from "@/lib/media";
 import {
   findTodayMeeting,
   listSessionRecords,
@@ -53,10 +54,13 @@ const FILTER_LABELS: Record<Filter, string> = {
   milestones: "Milestones",
 };
 
+type HomeMediaItem = Awaited<ReturnType<typeof listOrphanHomeMedia>>[number];
+
 type Item =
   | { kind: "session"; at: Date; record: SessionRecord }
   | { kind: "milestone"; at: Date; entry: JournalEntryItem }
-  | { kind: "note"; at: Date; entry: JournalEntryItem };
+  | { kind: "note"; at: Date; entry: JournalEntryItem }
+  | { kind: "homeMedia"; at: Date; dayKey: string; media: HomeMediaItem[] };
 
 const monthFormat = new Intl.DateTimeFormat("en-US", {
   timeZone: TEAM_TIME_ZONE,
@@ -66,8 +70,17 @@ const monthFormat = new Intl.DateTimeFormat("en-US", {
 
 function keep(item: Item, show: Filter) {
   if (show === "all") return true;
-  if (item.kind === "milestone") return show === "milestones";
-  if (item.kind === "note") return show === "notes";
+  if (item.kind === "milestone") {
+    if (show === "milestones") return true;
+    if (show === "media") return (item.entry.media?.length ?? 0) > 0;
+    return false;
+  }
+  if (item.kind === "note") {
+    if (show === "notes") return true;
+    if (show === "media") return item.entry.media.length > 0;
+    return false;
+  }
+  if (item.kind === "homeMedia") return show === "media";
   const record = item.record;
   if (show === "meetings") return true;
   if (show === "notes") {
@@ -79,6 +92,33 @@ function keep(item: Item, show: Filter) {
   if (show === "media") return record.media.length > 0;
   if (show === "robot") return record.robot.length > 0 || record.missionNotes.length > 0;
   return false;
+}
+
+function sessionNoteCount(record: SessionRecord) {
+  return (
+    record.progress.length +
+    record.actions.length +
+    record.lessons.length +
+    record.otherNotes.length +
+    record.missionNotes.length
+  );
+}
+
+/** Drop media and extra note bodies from collapsed timeline cards (keeps RSC payload smaller on phones). */
+function summarySessionRecord(record: SessionRecord): SessionRecord {
+  const teaser = record.progress[0] ?? record.lessons[0] ?? record.otherNotes[0] ?? null;
+  return {
+    ...record,
+    media: [],
+    actions: [],
+    missionNotes: [],
+    progress: teaser && record.progress[0] ? [record.progress[0]] : [],
+    lessons: teaser && !record.progress[0] && record.lessons[0] ? [record.lessons[0]] : [],
+    otherNotes:
+      teaser && !record.progress[0] && !record.lessons[0] && record.otherNotes[0]
+        ? [record.otherNotes[0]]
+        : [],
+  };
 }
 
 type PageProps = {
@@ -94,22 +134,42 @@ export default async function JournalPage({ searchParams }: PageProps) {
     ? (showParam as Filter)
     : "all";
 
-  const [records, entries, board, students, seasonEvents, latestMedia, mediaCount, robotCount, today] =
-    await Promise.all([
-      listSessionRecords(),
-      listJournalEntries(),
-      listMissionBoard(),
-      listStudents(),
-      listSeasonEvents(),
-      listGalleryMedia(6),
-      countMedia(),
-      countStatusEvents(),
-      findTodayMeeting(),
-    ]);
+  const [
+    records,
+    entries,
+    board,
+    students,
+    seasonEvents,
+    latestMedia,
+    mediaCount,
+    robotCount,
+    today,
+    orphanHomeMedia,
+  ] = await Promise.all([
+    listSessionRecords(),
+    listJournalEntries(),
+    listMissionBoard(),
+    listStudents(),
+    listSeasonEvents(),
+    listGalleryMedia(6),
+    countMedia(),
+    countStatusEvents(),
+    findTodayMeeting(),
+    listOrphanHomeMedia(),
+  ]);
   const upcomingNumber = today ? null : await nextSessionNumber();
   const todayDay = todayKey();
 
-  // Timeline: meetings, milestones, and notes not tied to a meeting.
+  // Group orphan home media (Photos tab, no note) by team day for one card per day.
+  const homeMediaByDay = new Map<string, HomeMediaItem[]>();
+  for (const item of orphanHomeMedia) {
+    const key = teamDateKey(item.createdAt);
+    const list = homeMediaByDay.get(key) ?? [];
+    list.push(item);
+    homeMediaByDay.set(key, list);
+  }
+
+  // Timeline: meetings, milestones, notes not tied to a meeting, and home-only media.
   // Meeting-linked milestones/notes use the meeting day, not insert time.
   const all: Item[] = [
     ...records.map((record): Item => ({ kind: "session", at: record.startsAt, record })),
@@ -119,6 +179,12 @@ export default async function JournalPage({ searchParams }: PageProps) {
     ...entries
       .filter((entry) => !entry.milestone && !entry.relatedMeeting)
       .map((entry): Item => ({ kind: "note", at: journalEntryAt(entry), entry })),
+    ...[...homeMediaByDay.entries()].map(([dayKey, media]): Item => ({
+      kind: "homeMedia",
+      dayKey,
+      at: media[0].createdAt,
+      media,
+    })),
   ].sort((left, right) => right.at.getTime() - left.at.getTime());
   const items = all.filter((item) => keep(item, show));
   const newestSessionId = records[0]?.id;
@@ -352,6 +418,13 @@ export default async function JournalPage({ searchParams }: PageProps) {
                       </TimelineRow>
                     );
                   }
+                  if (item.kind === "homeMedia") {
+                    return (
+                      <TimelineRow key={`home-media-${item.dayKey}`} date={item.at} last={last}>
+                        <HomeMediaCard items={item.media} />
+                      </TimelineRow>
+                    );
+                  }
                   const expanded =
                     item.record.id === newestSessionId || item.record.dayKey === todayDay;
                   return (
@@ -359,7 +432,12 @@ export default async function JournalPage({ searchParams }: PageProps) {
                       {expanded ? (
                         <SessionCard record={item.record} students={students} mediaLimit={3} />
                       ) : (
-                        <SessionSummaryCard record={item.record} studentCount={students.length} />
+                        <SessionSummaryCard
+                          record={summarySessionRecord(item.record)}
+                          studentCount={students.length}
+                          mediaCount={item.record.media.length}
+                          noteCount={sessionNoteCount(item.record)}
+                        />
                       )}
                     </TimelineRow>
                   );
@@ -477,19 +555,26 @@ export default async function JournalPage({ searchParams }: PageProps) {
                   All {mediaCount}
                 </Link>
               </div>
-<MediaGroup
+              <MediaGroup
                 className="grid grid-cols-3 gap-1.5"
                 thumbClassName="aspect-square rounded-lg"
                 items={latestMedia.map((item) => {
-                  const session =
-                    item.sessionNumber != null ? `Session ${item.sessionNumber}` : item.sessionTitle?.trim() || "Session";
+                  const session = item.fromHome
+                    ? "From home"
+                    : item.sessionNumber != null
+                      ? `Session ${item.sessionNumber}`
+                      : item.sessionTitle?.trim() || "Session";
                   return {
                     id: item.id,
                     contentType: item.contentType,
                     caption: item.caption,
                     fallbackLabel: session,
                     detail: item.uploaderName,
-                    link: { href: `/journal/${item.meetingId}`, label: session },
+                    // From-home media has no day page; the journal's media filter shows it.
+                    link: {
+                      href: item.meetingId ? `/journal/${item.meetingId}` : "/journal?show=media",
+                      label: session,
+                    },
                   };
                 })}
               />

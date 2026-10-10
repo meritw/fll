@@ -16,7 +16,7 @@ import {
 import { findDeliverableEmailUser } from "@/lib/coaches";
 import { planDayNoteWrites } from "@/lib/day-note-plan";
 import { addSeasonEvent, createJournalEntry, deleteSeasonEvent } from "@/lib/journal";
-import { attachMeetingMedia, updateMediaCaption } from "@/lib/media";
+import { attachHomeMedia, attachMeetingMedia, HOME_MEDIA_SCOPE, updateMediaCaption } from "@/lib/media";
 import { VAGUE_EMAIL_MESSAGE } from "@/lib/messages";
 import { parseParentInviteList } from "@/lib/parent-invites";
 import {
@@ -429,7 +429,9 @@ export async function ensureTodayMeetingId(): Promise<{ id: string } | { error: 
   return requireTodayMeeting(session.user.id);
 }
 
-export type AutoSaveResult = { error: string } | { ok: true; meetingId?: string; message: string };
+export type AutoSaveResult =
+  | { error: string }
+  | { ok: true; meetingId?: string; journalEntryId?: string; message: string };
 
 /** One tap on a name. `meetingId: null` means today (and starts today's meeting). */
 export async function toggleAttendance(input: {
@@ -508,6 +510,10 @@ export async function postDayNote(input: {
     hasMeeting: Boolean(meetingId),
   });
 
+  // Prefer the day-record journal row for media; fall back to a milestone-only home note.
+  let journalEntryId: string | undefined;
+  let mediaEntryId: string | undefined;
+
   for (const write of writes) {
     if (write.type === "meetingNote") {
       if (!meetingId) {
@@ -534,12 +540,17 @@ export async function postDayNote(input: {
     if ("error" in result) {
       return { error: result.error ?? "That didn't save. Try again." };
     }
+    journalEntryId = result.id;
+    if (!write.milestone || !mediaEntryId) {
+      mediaEntryId = result.id;
+    }
   }
 
   revalidateJournal(meetingId);
   return {
     ok: true,
     meetingId: meetingId ?? undefined,
+    journalEntryId: fromHome ? mediaEntryId ?? journalEntryId : undefined,
     message: input.milestone ? "Milestone added to the timeline." : "Added to the journal.",
   };
 }
@@ -688,22 +699,41 @@ export async function removeSeasonDate(formData: FormData) {
 }
 
 export async function saveMeetingMedia(input: {
+  /** Meeting id, or `"home"` for Extra notes / from-home uploads. */
   meetingId: string;
   objectKey: string;
   contentType: string;
   size: number;
   fileName: string;
   caption?: string;
+  /** When set with meetingId `"home"`, links the file to that journal entry. */
+  journalEntryId?: string | null;
 }) {
   const session = await requireUser();
-  const result = await attachMeetingMedia({
-    ...input,
-    uploaderId: session.user.id,
-  });
+  const fromHome = input.meetingId === HOME_MEDIA_SCOPE || input.meetingId === "home";
+  const result = fromHome
+    ? await attachHomeMedia({
+        uploaderId: session.user.id,
+        objectKey: input.objectKey,
+        contentType: input.contentType,
+        size: input.size,
+        fileName: input.fileName,
+        caption: input.caption,
+        journalEntryId: input.journalEntryId,
+      })
+    : await attachMeetingMedia({
+        meetingId: input.meetingId,
+        uploaderId: session.user.id,
+        objectKey: input.objectKey,
+        contentType: input.contentType,
+        size: input.size,
+        fileName: input.fileName,
+        caption: input.caption,
+      });
   if ("error" in result) {
     return result;
   }
-  revalidateJournal(input.meetingId);
+  revalidateJournal(fromHome ? null : input.meetingId);
   revalidatePath("/gallery");
   return { message: "Added to the journal.", id: result.id };
 }

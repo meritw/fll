@@ -8,7 +8,8 @@ import { MediaLightbox } from "@/components/media-lightbox";
 
 export type GalleryItem = {
   id: string;
-  meetingId: string;
+  meetingId: string | null;
+  fromHome?: boolean;
   contentType: string;
   caption: string | null;
   uploaderName: string;
@@ -17,13 +18,18 @@ export type GalleryItem = {
   sessionDay: string;
 };
 
+/** Meeting media opens its day; media added from home has no day page, so it opens the journal's media view. */
+function hrefFor(item: GalleryItem) {
+  return item.meetingId ? `/journal/${item.meetingId}` : "/journal?show=media";
+}
+
 export function GalleryGrid({ items }: { items: GalleryItem[] }) {
   const [open, setOpen] = useState<number | null>(null);
 
   if (items.length === 0) {
     return (
       <p className="text-lg text-muted-foreground">
-        No photos or videos yet. Add them from a meeting session page.
+        No photos or videos yet. Add them from the journal — at a meeting or from home.
       </p>
     );
   }
@@ -32,7 +38,10 @@ export function GalleryGrid({ items }: { items: GalleryItem[] }) {
     <>
       <ul className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         {items.map((item, index) => (
-          <li key={item.id} className="flex flex-col gap-2">
+          <li
+            key={item.id}
+            className="flex flex-col gap-2 [content-visibility:auto] [contain-intrinsic-size:auto_320px]"
+          >
             <MediaThumb
               id={item.id}
               contentType={item.contentType}
@@ -44,10 +53,7 @@ export function GalleryGrid({ items }: { items: GalleryItem[] }) {
               <p className="text-lg whitespace-pre-wrap">{item.caption}</p>
             ) : null}
             <p className="text-base">
-              <Link
-                href={`/journal/${item.meetingId}`}
-                className="font-medium underline-offset-4 hover:underline"
-              >
+              <Link href={hrefFor(item)} className="font-medium underline-offset-4 hover:underline">
                 {item.sessionLabel}
               </Link>
               <span className="text-muted-foreground"> · {item.sessionDay}</span>
@@ -68,7 +74,7 @@ export function GalleryGrid({ items }: { items: GalleryItem[] }) {
           caption: item.caption,
           fallbackLabel: `${item.sessionLabel} · ${item.sessionDay}`,
           detail: `${item.sessionDay} · ${item.uploaderName}`,
-          link: { href: `/journal/${item.meetingId}`, label: item.sessionLabel },
+          link: { href: hrefFor(item), label: item.sessionLabel },
         }))}
       />
     </>

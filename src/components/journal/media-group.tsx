@@ -16,12 +16,14 @@ export function MediaGroup({
   showCaptions = false,
   className,
   thumbClassName = "aspect-[4/3]",
+  captionClassName,
 }: {
   items: LightboxItem[];
   visibleCount?: number;
   showCaptions?: boolean;
   className?: string;
   thumbClassName?: string;
+  captionClassName?: string;
 }) {
   const [open, setOpen] = useState<number | null>(null);
   const shown = visibleCount != null ? items.slice(0, visibleCount) : items;
@@ -40,7 +42,7 @@ export function MediaGroup({
               onOpen={() => setOpen(index)}
             />
             {showCaptions && item.caption?.trim() ? (
-              <span className="text-sm">{item.caption}</span>
+              <span className={cn("text-sm", captionClassName)}>{item.caption}</span>
             ) : null}
           </li>
         ))}

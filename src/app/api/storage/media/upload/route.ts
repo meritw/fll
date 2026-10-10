@@ -5,7 +5,9 @@ import { getDb } from "@/db";
 import { meeting } from "@/db/schema";
 import { auth } from "@/lib/auth";
 import {
+  HOME_MEDIA_SCOPE,
   isMediaContentType,
+  isMediaScopeId,
   MAX_MEDIA_BYTES,
   objectKeyForMedia,
   presignMediaUpload,
@@ -72,6 +74,9 @@ export async function POST(request: Request) {
   if (!meetingId) {
     return NextResponse.json({ error: "That meeting is missing." }, { status: 400 });
   }
+  if (!isMediaScopeId(meetingId)) {
+    return NextResponse.json({ error: "That meeting is missing." }, { status: 400 });
+  }
   if (!fileName) {
     return NextResponse.json({ error: "Choose a photo or video." }, { status: 400 });
   }
@@ -85,13 +90,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "That file is too large (512 MB max)." }, { status: 400 });
   }
 
-  const [existing] = await getDb()
-    .select({ id: meeting.id })
-    .from(meeting)
-    .where(eq(meeting.id, meetingId))
-    .limit(1);
-  if (!existing) {
-    return NextResponse.json({ error: "That meeting is missing." }, { status: 404 });
+  const fromHome = meetingId === HOME_MEDIA_SCOPE;
+  if (!fromHome) {
+    const [existing] = await getDb()
+      .select({ id: meeting.id })
+      .from(meeting)
+      .where(eq(meeting.id, meetingId))
+      .limit(1);
+    if (!existing) {
+      return NextResponse.json({ error: "That meeting is missing." }, { status: 404 });
+    }
   }
 
   const key = objectKeyForMedia(meetingId, contentType);
