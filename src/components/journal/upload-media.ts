@@ -2,6 +2,9 @@
 
 import { saveMeetingMedia } from "@/lib/actions";
 
+/** Same token as `HOME_MEDIA_SCOPE` in `@/lib/storage` (kept here so the client avoids AWS imports). */
+export const HOME_UPLOAD_SCOPE = "home";
+
 export const MEDIA_ACCEPT =
   "image/jpeg,image/png,image/webp,image/heic,image/heif,video/mp4,video/quicktime,video/webm,.jpg,.jpeg,.png,.webp,.heic,.heif,.mp4,.mov,.webm";
 
@@ -49,11 +52,15 @@ function putWithProgress(
   });
 }
 
-/** Presign → upload to storage → attach to the meeting. Returns the new media id. */
+/**
+ * Presign → upload to storage → attach.
+ * `meetingId` is a real meeting id, or `"home"` / HOME_MEDIA_SCOPE for Extra notes.
+ */
 export async function uploadMeetingMedia(
   meetingId: string,
   file: File,
   onProgress: (fraction: number) => void,
+  options?: { journalEntryId?: string | null },
 ): Promise<{ id: string } | { error: string }> {
   if (file.size <= 0 || file.size > MAX_BYTES) {
     return { error: "That file is too large (512 MB max)." };
@@ -63,10 +70,16 @@ export async function uploadMeetingMedia(
     return { error: "Use a photo (JPEG, PNG, WebP, HEIC) or video (MP4, MOV, WebM)." };
   }
 
+  const scopeId = meetingId === "home" || meetingId === HOME_UPLOAD_SCOPE ? HOME_UPLOAD_SCOPE : meetingId;
   const ticketResponse = await fetch("/api/storage/media/upload", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ meetingId, fileName: file.name, size: file.size, contentType }),
+    body: JSON.stringify({
+      meetingId: scopeId,
+      fileName: file.name,
+      size: file.size,
+      contentType,
+    }),
   });
   const ticket = (await ticketResponse.json().catch(() => null)) as {
     url?: string;
@@ -90,11 +103,12 @@ export async function uploadMeetingMedia(
   }
 
   const result = await saveMeetingMedia({
-    meetingId,
+    meetingId: scopeId,
     objectKey: ticket.key,
     contentType: ticket.contentType,
     size: file.size,
     fileName: file.name,
+    journalEntryId: options?.journalEntryId,
   });
   if ("error" in result && result.error) {
     return { error: result.error };

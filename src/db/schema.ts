@@ -252,14 +252,17 @@ export const pybricksLicense = pgTable(
   ],
 );
 
-/** Photos/videos attached to a meeting session (Neon object storage). */
+/** Photos/videos for a meeting day or a "from home" journal note (Neon object storage). */
 export const meetingMedia = pgTable(
   "meeting_media",
   {
     id: text("id").primaryKey(),
-    meetingId: text("meeting_id")
-      .notNull()
-      .references(() => meeting.id, { onDelete: "cascade" }),
+    // Null when fromHome — same idea as journal entries written without a meeting.
+    meetingId: text("meeting_id").references(() => meeting.id, { onDelete: "cascade" }),
+    journalEntryId: text("journal_entry_id").references(() => journalEntry.id, {
+      onDelete: "set null",
+    }),
+    fromHome: boolean("from_home").notNull().default(false),
     uploaderId: text("uploader_id")
       .notNull()
       .references(() => user.id, { onDelete: "restrict" }),
@@ -272,6 +275,7 @@ export const meetingMedia = pgTable(
   },
   (table) => [
     index("meeting_media_meeting_idx").on(table.meetingId),
+    index("meeting_media_journal_entry_idx").on(table.journalEntryId),
     index("meeting_media_created_at_idx").on(table.createdAt),
   ],
 );
@@ -420,7 +424,7 @@ export const meetingNoteRelations = relations(meetingNote, ({ one }) => ({
   }),
 }));
 
-export const journalEntryRelations = relations(journalEntry, ({ one }) => ({
+export const journalEntryRelations = relations(journalEntry, ({ one, many }) => ({
   author: one(user, {
     fields: [journalEntry.authorId],
     references: [user.id],
@@ -429,12 +433,17 @@ export const journalEntryRelations = relations(journalEntry, ({ one }) => ({
     fields: [journalEntry.relatedMeetingId],
     references: [meeting.id],
   }),
+  media: many(meetingMedia),
 }));
 
 export const meetingMediaRelations = relations(meetingMedia, ({ one }) => ({
   meeting: one(meeting, {
     fields: [meetingMedia.meetingId],
     references: [meeting.id],
+  }),
+  journalEntry: one(journalEntry, {
+    fields: [meetingMedia.journalEntryId],
+    references: [journalEntry.id],
   }),
   uploader: one(user, {
     fields: [meetingMedia.uploaderId],

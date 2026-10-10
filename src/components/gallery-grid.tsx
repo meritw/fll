@@ -4,7 +4,8 @@ import { LazyVideo } from "@/components/lazy-video";
 
 export type GalleryItem = {
   id: string;
-  meetingId: string;
+  meetingId: string | null;
+  fromHome?: boolean;
   contentType: string;
   caption: string | null;
   uploaderName: string;
@@ -25,7 +26,7 @@ export function GalleryGrid({ items }: { items: GalleryItem[] }) {
   if (items.length === 0) {
     return (
       <p className="text-lg text-muted-foreground">
-        No photos or videos yet. Add them from a meeting session page.
+        No photos or videos yet. Add them from the journal — at a meeting or from home.
       </p>
     );
   }
@@ -66,12 +67,18 @@ export function GalleryGrid({ items }: { items: GalleryItem[] }) {
             <p className="text-lg whitespace-pre-wrap">{item.caption}</p>
           ) : null}
           <p className="text-base">
-            <Link
-              href={`/journal/${item.meetingId}`}
-              className="font-medium underline-offset-4 hover:underline"
-            >
-              {item.sessionLabel}
-            </Link>
+            {item.meetingId ? (
+              <Link
+                href={`/journal/${item.meetingId}`}
+                className="font-medium underline-offset-4 hover:underline"
+              >
+                {item.sessionLabel}
+              </Link>
+            ) : (
+              <Link href="/journal?show=media" className="font-medium underline-offset-4 hover:underline">
+                {item.sessionLabel}
+              </Link>
+            )}
             <span className="text-muted-foreground"> · {item.sessionDay}</span>
           </p>
           <p className="text-base text-muted-foreground">

@@ -170,19 +170,26 @@ export async function openStorageObject(
   }
 }
 
+/** Object-key folder for media not tied to a meeting ("from home" / Extra notes). */
+export const HOME_MEDIA_SCOPE = "home";
+
+export function isMediaScopeId(value: string) {
+  return Boolean(value) && !value.includes("/") && !value.includes("..");
+}
+
 export function objectKeyForMedia(
-  meetingId: string,
+  scopeId: string,
   contentType: MediaContentType,
 ) {
   const ext = MEDIA_CONTENT_TYPES[contentType];
-  return `journal/${meetingId}/${crypto.randomUUID()}.${ext}`;
+  return `journal/${scopeId}/${crypto.randomUUID()}.${ext}`;
 }
 
-export function isJournalMediaKey(meetingId: string, key: string) {
-  if (!meetingId || meetingId.includes("/") || meetingId.includes("..")) {
+export function isJournalMediaKey(scopeId: string, key: string) {
+  if (!isMediaScopeId(scopeId)) {
     return false;
   }
-  const prefix = `journal/${meetingId}/`;
+  const prefix = `journal/${scopeId}/`;
   if (!key.startsWith(prefix)) {
     return false;
   }

@@ -1,13 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { Check } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Camera, Check, CircleAlert, Play, X } from "lucide-react";
 import { cn } from "cn";
 
 import type { Viewer } from "@/components/journal/day-tabs";
 import { SaveStatus, type SaveState } from "@/components/journal/save-status";
 import { useDraft } from "@/components/journal/use-draft";
+import {
+  HOME_UPLOAD_SCOPE,
+  MEDIA_ACCEPT,
+  resolveContentType,
+  uploadMeetingMedia,
+} from "@/components/journal/upload-media";
 import { Button } from "@/components/ui/button";
 import { postDayNote } from "@/lib/actions";
 import type { DayNoteKind } from "@/lib/notebook";
@@ -39,6 +45,16 @@ const KINDS: { kind: DayNoteKind; label: string; hint: string; placeholder: stri
   },
 ];
 
+type QueuedFile = {
+  key: string;
+  file: File;
+  previewUrl: string;
+  isVideo: boolean;
+  progress: number;
+  state: "queued" | "uploading" | "done" | "error";
+  error?: string;
+};
+
 /** Typed notes keep a Save button (team members expect one) plus a local draft so nothing is lost. */
 export function NoteTab({
   meetingId,
@@ -59,7 +75,46 @@ export function NoteTab({
   const [body, setBody, clearBody] = useDraft(draftKey);
   const [save, setSave] = useState<SaveState>(null);
   const [pending, setPending] = useState(false);
+  const [files, setFiles] = useState<QueuedFile[]>([]);
   const current = KINDS.find((item) => item.kind === kind) ?? KINDS[0];
+
+  useEffect(
+    () => () => {
+      for (const item of files) URL.revokeObjectURL(item.previewUrl);
+    },
+    // Only on unmount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
+
+  function queueFiles(event: React.ChangeEvent<HTMLInputElement>) {
+    const picked = [...(event.target.files ?? [])];
+    event.target.value = "";
+    if (picked.length === 0) return;
+    setFiles((list) => [
+      ...list,
+      ...picked.map((file) => ({
+        key: crypto.randomUUID(),
+        file,
+        previewUrl: URL.createObjectURL(file),
+        isVideo: resolveContentType(file).startsWith("video/"),
+        progress: 0,
+        state: "queued" as const,
+      })),
+    ]);
+  }
+
+  function removeFile(key: string) {
+    setFiles((list) => {
+      const target = list.find((item) => item.key === key);
+      if (target) URL.revokeObjectURL(target.previewUrl);
+      return list.filter((item) => item.key !== key);
+    });
+  }
+
+  function patchFile(key: string, next: Partial<QueuedFile>) {
+    setFiles((list) => list.map((item) => (item.key === key ? { ...item, ...next } : item)));
+  }
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -75,6 +130,54 @@ export function NoteTab({
         setSave({ kind: "error", text: result.error });
         return;
       }
+
+      const pendingFiles = files.filter((item) => item.state === "queued" || item.state === "error");
+      if (fromHome && pendingFiles.length > 0) {
+        if (!result.journalEntryId) {
+          setSave({
+            kind: "error",
+            text: "Note saved, but photos need a note id. Try the Photos tab with “from home”.",
+          });
+          clearBody();
+          setMilestone(false);
+          onSaved(undefined);
+          return;
+        }
+        let failed = 0;
+        for (const item of pendingFiles) {
+          patchFile(item.key, { state: "uploading", progress: 0, error: undefined });
+          try {
+            const uploaded = await uploadMeetingMedia(
+              HOME_UPLOAD_SCOPE,
+              item.file,
+              (fraction) => patchFile(item.key, { progress: fraction }),
+              { journalEntryId: result.journalEntryId },
+            );
+            if ("error" in uploaded) {
+              failed += 1;
+              patchFile(item.key, { state: "error", error: uploaded.error });
+            } else {
+              patchFile(item.key, { state: "done", progress: 1 });
+            }
+          } catch {
+            failed += 1;
+            patchFile(item.key, { state: "error", error: "The file did not upload. Try again." });
+          }
+        }
+        if (failed > 0) {
+          setSave({
+            kind: "error",
+            text: `Note saved. ${failed} file${failed === 1 ? "" : "s"} did not upload — try again or use Photos.`,
+          });
+          clearBody();
+          setMilestone(false);
+          onSaved(undefined);
+          return;
+        }
+        for (const item of files) URL.revokeObjectURL(item.previewUrl);
+        setFiles([]);
+      }
+
       clearBody();
       setMilestone(false);
       setSave({ kind: "saved", text: result.message });
@@ -152,11 +255,88 @@ export function NoteTab({
           <input
             type="checkbox"
             checked={fromHome}
-            onChange={(event) => setFromHome(event.target.checked)}
+            onChange={(event) => {
+              const checked = event.target.checked;
+              setFromHome(checked);
+              if (!checked) {
+                for (const item of files) URL.revokeObjectURL(item.previewUrl);
+                setFiles([]);
+              }
+            }}
             className="size-5 accent-primary"
           />
           I&apos;m writing this from home, not at a meeting.
         </label>
+      ) : null}
+
+      {fromHome ? (
+        <div className="flex flex-col gap-3 rounded-2xl bg-info-soft/60 p-4 ring-1 ring-info/25">
+          <div className="flex flex-col gap-1">
+            <span className="text-lg font-semibold text-info-ink">Photos or video with this note</span>
+            <span className="text-sm text-info-ink/80">
+              Optional. They save with the note and show on the timeline and gallery.
+            </span>
+          </div>
+          <label className="flex min-h-20 cursor-pointer items-center justify-center gap-2 rounded-xl border-2 border-dashed border-info/40 bg-card px-4 py-3 text-info-ink focus-within:ring-3 focus-within:ring-ring/50 hover:bg-info-tint/40">
+            <Camera className="size-6 shrink-0" strokeWidth={1.8} aria-hidden />
+            <span className="text-base font-semibold">Choose photos or videos</span>
+            <input
+              type="file"
+              multiple
+              accept={MEDIA_ACCEPT}
+              onChange={queueFiles}
+              className="sr-only"
+            />
+          </label>
+          {files.length > 0 ? (
+            <ul className="flex flex-col gap-2" aria-label="Files to attach">
+              {files.map((item) => (
+                <li key={item.key} className="flex items-center gap-3">
+                  <div className="relative h-14 w-20 shrink-0 overflow-hidden rounded-lg bg-muted">
+                    {item.isVideo ? (
+                      <span className="flex size-full items-center justify-center bg-black">
+                        <Play className="size-5 fill-white text-white" aria-hidden />
+                      </span>
+                    ) : (
+                      // Local preview before upload.
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={item.previewUrl} alt="" className="size-full object-cover" />
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1 text-sm">
+                    {item.state === "uploading" ? (
+                      <span className="font-semibold text-info-ink">
+                        Uploading… {Math.round(item.progress * 100)}%
+                      </span>
+                    ) : item.state === "error" ? (
+                      <span className="flex items-center gap-1 font-semibold text-destructive">
+                        <CircleAlert className="size-4 shrink-0" aria-hidden />
+                        {item.error}
+                      </span>
+                    ) : item.state === "done" ? (
+                      <span className="flex items-center gap-1 font-semibold text-present-ink">
+                        <Check className="size-4" strokeWidth={2.5} aria-hidden />
+                        Attached
+                      </span>
+                    ) : (
+                      <span className="truncate text-foreground/80">{item.file.name}</span>
+                    )}
+                  </div>
+                  {item.state === "queued" || item.state === "error" ? (
+                    <button
+                      type="button"
+                      onClick={() => removeFile(item.key)}
+                      aria-label={`Remove ${item.file.name}`}
+                      className="inline-flex size-10 items-center justify-center rounded-lg bg-muted hover:bg-foreground/10"
+                    >
+                      <X className="size-4" aria-hidden />
+                    </button>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
       ) : null}
 
       <p className="flex items-start gap-2 text-sm text-muted-foreground">

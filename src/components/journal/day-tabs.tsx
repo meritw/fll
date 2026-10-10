@@ -137,6 +137,7 @@ export function DayTabs({
             <PhotosTab
               viewer={viewer}
               existing={media}
+              isToday={isToday}
               ensureMeeting={ensureMeeting}
               onSaved={saved}
             />
