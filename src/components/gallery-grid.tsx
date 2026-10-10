@@ -1,6 +1,10 @@
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
 
-import { LazyVideo } from "@/components/lazy-video";
+import { MediaThumb } from "@/components/journal/media-thumb";
+import { MediaLightbox } from "@/components/media-lightbox";
 
 export type GalleryItem = {
   id: string;
@@ -14,15 +18,14 @@ export type GalleryItem = {
   sessionDay: string;
 };
 
-function isImage(contentType: string) {
-  return contentType.startsWith("image/");
-}
-
-function isVideo(contentType: string) {
-  return contentType.startsWith("video/");
+/** Meeting media opens its day; media added from home has no day page, so it opens the journal's media view. */
+function hrefFor(item: GalleryItem) {
+  return item.meetingId ? `/journal/${item.meetingId}` : "/journal?show=media";
 }
 
 export function GalleryGrid({ items }: { items: GalleryItem[] }) {
+  const [open, setOpen] = useState<number | null>(null);
+
   if (items.length === 0) {
     return (
       <p className="text-lg text-muted-foreground">
@@ -32,60 +35,48 @@ export function GalleryGrid({ items }: { items: GalleryItem[] }) {
   }
 
   return (
-    <ul className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-      {items.map((item) => (
-        <li key={item.id} className="flex flex-col gap-2 [content-visibility:auto] [contain-intrinsic-size:auto_320px]">
-          <div className="overflow-hidden rounded-xl bg-muted ring-1 ring-foreground/10">
-            {isImage(item.contentType) ? (
-              // Auth-gated app route; not a public CDN URL.
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={`/media/${item.id}`}
-                alt={item.caption?.trim() || item.sessionLabel}
-                loading="lazy"
-                decoding="async"
-                className="aspect-[4/3] w-full object-cover"
-              />
-            ) : isVideo(item.contentType) ? (
-              <div className="aspect-[4/3] w-full">
-                <LazyVideo
-                  src={`/media/${item.id}`}
-                  label={item.caption?.trim() || item.sessionLabel}
-                  className="aspect-[4/3] w-full"
-                />
-              </div>
-            ) : (
-              <a
-                href={`/media/${item.id}`}
-                className="flex aspect-[4/3] items-center justify-center text-lg underline-offset-4 hover:underline"
-              >
-                Open file
-              </a>
-            )}
-          </div>
-          {item.caption?.trim() ? (
-            <p className="text-lg whitespace-pre-wrap">{item.caption}</p>
-          ) : null}
-          <p className="text-base">
-            {item.meetingId ? (
-              <Link
-                href={`/journal/${item.meetingId}`}
-                className="font-medium underline-offset-4 hover:underline"
-              >
+    <>
+      <ul className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {items.map((item, index) => (
+          <li
+            key={item.id}
+            className="flex flex-col gap-2 [content-visibility:auto] [contain-intrinsic-size:auto_320px]"
+          >
+            <MediaThumb
+              id={item.id}
+              contentType={item.contentType}
+              caption={item.caption}
+              className="aspect-[4/3]"
+              onOpen={() => setOpen(index)}
+            />
+            {item.caption?.trim() ? (
+              <p className="text-lg whitespace-pre-wrap">{item.caption}</p>
+            ) : null}
+            <p className="text-base">
+              <Link href={hrefFor(item)} className="font-medium underline-offset-4 hover:underline">
                 {item.sessionLabel}
               </Link>
-            ) : (
-              <Link href="/journal?show=media" className="font-medium underline-offset-4 hover:underline">
-                {item.sessionLabel}
-              </Link>
-            )}
-            <span className="text-muted-foreground"> · {item.sessionDay}</span>
-          </p>
-          <p className="text-base text-muted-foreground">
-            — {item.uploaderName} · {item.createdLabel}
-          </p>
-        </li>
-      ))}
-    </ul>
+              <span className="text-muted-foreground"> · {item.sessionDay}</span>
+            </p>
+            <p className="text-base text-muted-foreground">
+              — {item.uploaderName} · {item.createdLabel}
+            </p>
+          </li>
+        ))}
+      </ul>
+
+      <MediaLightbox
+        index={open}
+        onIndexChange={setOpen}
+        items={items.map((item) => ({
+          id: item.id,
+          contentType: item.contentType,
+          caption: item.caption,
+          fallbackLabel: `${item.sessionLabel} · ${item.sessionDay}`,
+          detail: `${item.sessionDay} · ${item.uploaderName}`,
+          link: { href: hrefFor(item), label: item.sessionLabel },
+        }))}
+      />
+    </>
   );
 }

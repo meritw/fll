@@ -6,6 +6,7 @@ import { Camera, Check, CircleAlert, Play } from "lucide-react";
 
 import type { Viewer } from "@/components/journal/day-tabs";
 import { MediaThumb } from "@/components/journal/media-thumb";
+import { MediaLightbox } from "@/components/media-lightbox";
 import { SaveStatus, type SaveState } from "@/components/journal/save-status";
 import {
   HOME_UPLOAD_SCOPE,
@@ -50,6 +51,8 @@ export function PhotosTab({
 }) {
   const [fromHome, setFromHome] = useState(false);
   const [uploads, setUploads] = useState<Upload[]>([]);
+  /** Index into `earlier` shown in the lightbox, or null. */
+  const [viewing, setViewing] = useState<number | null>(null);
   useEffect(
     () => () => {
       for (const item of uploads) URL.revokeObjectURL(item.previewUrl);
@@ -192,7 +195,7 @@ export function PhotosTab({
         <div className="flex flex-col gap-3 border-t border-line pt-4">
           <h3 className="text-lg font-semibold">Already on this day</h3>
           <ul className="grid grid-cols-1 gap-4 min-[480px]:grid-cols-2">
-            {earlier.map((item) => {
+            {earlier.map((item, index) => {
               const canEdit = item.uploaderId === viewer.id || viewer.role === "coach";
               return (
                 <li key={item.id} className="flex flex-col gap-2">
@@ -201,6 +204,7 @@ export function PhotosTab({
                     contentType={item.contentType}
                     caption={item.caption}
                     className="aspect-[4/3]"
+                    onOpen={() => setViewing(index)}
                   />
                   {canEdit ? (
                     <CaptionEditor
@@ -216,6 +220,17 @@ export function PhotosTab({
               );
             })}
           </ul>
+          <MediaLightbox
+            index={viewing}
+            onIndexChange={setViewing}
+            items={earlier.map((item) => ({
+              id: item.id,
+              contentType: item.contentType,
+              caption: item.caption,
+              fallbackLabel: "Photo from this day",
+              detail: item.uploaderName,
+            }))}
+          />
         </div>
       ) : null}
     </section>
