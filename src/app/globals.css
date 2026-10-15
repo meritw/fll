@@ -204,3 +204,11 @@
     @apply font-sans;
   }
 }
+
+.code-token {
+  color: var(--shiki-light);
+}
+
+.dark .code-token {
+  color: var(--shiki-dark);
+}

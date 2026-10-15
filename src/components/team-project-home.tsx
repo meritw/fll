@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { submitTeamProjectUpload } from "@/lib/actions";
+import { browseHref } from "@/lib/team-project/browse-url";
 import { PYBRICKS_CODE_URL, UPLOAD_NOTE_REQUIRED_ERROR } from "@/lib/team-project/constants";
 
 const BASE_SHA_KEY = "rs-team-project-base-sha";
@@ -623,18 +624,26 @@ export function TeamProjectHome({
       </section>
 
       <section>
-        <h2 className="text-xl font-semibold">Version history</h2>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-xl font-semibold">Version history</h2>
+          <Button asChild size="xl">
+            <Link href="/home/files">Open the code</Link>
+          </Button>
+        </div>
         {commits.length === 0 ? (
           <p className="mt-2 text-muted-foreground">Nothing yet. The first upload will show here.</p>
         ) : (
           <ul className="mt-3 flex flex-col gap-2 text-base">
             {commits.map((item) => (
               <li key={item.id}>
-                <code className="text-sm">{item.sha.slice(0, 7)}</code>
-                {" · "}
-                <span className="font-medium">{item.uploadedByName}</span>
-                {" · "}
-                {item.message}
+                <Link
+                  href={browseHref({ sha: item.sha, file: "main.py" })}
+                  className="flex min-h-11 flex-wrap items-baseline gap-x-2 rounded-xl px-1 py-1 hover:bg-muted/60"
+                >
+                  <code className="text-sm">{item.sha.slice(0, 7)}</code>
+                  <span className="font-medium">{item.uploadedByName}</span>
+                  <span>{item.message}</span>
+                </Link>
               </li>
             ))}
           </ul>
