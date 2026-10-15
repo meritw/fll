@@ -88,7 +88,7 @@ async function ensureProjectRow() {
   return again;
 }
 
-async function loadRepo(): Promise<{
+export async function loadRepo(): Promise<{
   fs: GitFs;
   vol: ReturnType<typeof createMemFs>["vol"];
   dir: string;
@@ -131,6 +131,29 @@ function starterFiles() {
   return new Map<string, Uint8Array>([
     ["main.py", new TextEncoder().encode(STARTER_MAIN_PY)],
   ]);
+}
+
+export async function readDownloadTree(repo: {
+  fs: GitFs;
+  dir: string;
+  headSha: string | null;
+}): Promise<{ files: Map<string, Uint8Array>; starter: boolean }> {
+  let files: Map<string, Uint8Array>;
+  let starter = false;
+  if (repo.headSha) {
+    files = await readWorkingTree(repo.fs, repo.dir);
+    if (files.size === 0) {
+      files = await treeAtCommit(repo.fs, repo.dir, repo.headSha);
+    }
+  } else {
+    files = starterFiles();
+    starter = true;
+  }
+  if (files.size === 0) {
+    files = starterFiles();
+    starter = true;
+  }
+  return { files, starter };
 }
 
 export async function getTeamProjectSummary() {
@@ -191,18 +214,7 @@ export async function buildDownloadZip(): Promise<{
   fileName: string;
 }> {
   const { fs, vol, dir, project } = await loadRepo();
-  let files: Map<string, Uint8Array>;
-  if (project.headSha) {
-    files = await readWorkingTree(fs, dir);
-    if (files.size === 0) {
-      files = await treeAtCommit(fs, dir, project.headSha);
-    }
-  } else {
-    files = starterFiles();
-  }
-  if (files.size === 0) {
-    files = starterFiles();
-  }
+  const { files } = await readDownloadTree({ fs, dir, headSha: project.headSha });
   const bytes = await zipProjectFiles(files);
   void vol;
   return {
