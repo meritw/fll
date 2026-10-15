@@ -7,7 +7,7 @@
     "build": "drizzle-kit migrate && next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx --tsconfig tsconfig.json --test src/**/*.test.ts",
+    "test": "tsx --tsconfig tsconfig.json --test $(find src -name '*.test.ts')",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate"
   },
