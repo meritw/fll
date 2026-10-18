@@ -1,7 +1,8 @@
 "use client";
 
-import { useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
+import { CircleAlert, CircleCheckBig, TriangleAlert } from "lucide-react";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -10,6 +11,11 @@ import { Label } from "@/components/ui/label";
 import { submitTeamProjectUpload } from "@/lib/actions";
 import { browseHref } from "@/lib/team-project/browse-url";
 import { PYBRICKS_CODE_URL, UPLOAD_NOTE_REQUIRED_ERROR } from "@/lib/team-project/constants";
+import {
+  hasDownloadComment,
+  hasDownloadName,
+  SAME_ZIP_ERROR_CODE,
+} from "@/lib/team-project/same-zip";
 
 const BASE_SHA_KEY = "rs-team-project-base-sha";
 const DOWNLOAD_FILE_NAME = "RollingSparks.zip";
@@ -76,6 +82,24 @@ function readDownloadSha() {
   }
 }
 
+async function readZipComment(file: File) {
+  try {
+    const { default: JSZip } = await import("jszip");
+    const zip = await JSZip.loadAsync(await file.arrayBuffer());
+    return (zip as typeof zip & { comment?: string | null }).comment ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function scrollIntoViewGently(element: HTMLElement | null) {
+  if (!element) {
+    return;
+  }
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  element.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "nearest" });
+}
+
 function PybricksIcon({ icon }: { icon: keyof typeof PYBRICKS_ICONS }) {
   const { x, y, width, height, label } = PYBRICKS_ICONS[icon];
   const scale = ICON_HEIGHT_PX / height;
@@ -109,6 +133,96 @@ function NoteAlert({ note }: { note: Note | null }) {
         {note.text}
       </AlertDescription>
     </Alert>
+  );
+}
+
+type UploadStatus =
+  | { kind: "done"; text: string }
+  | { kind: "error"; text: string }
+  | { kind: "same-zip" };
+
+function SameZipWarning({
+  isCoach,
+  onPickAgain,
+  disabled,
+}: {
+  isCoach: boolean;
+  onPickAgain: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div
+      role="alert"
+      className="flex max-w-xl flex-col gap-3 rounded-xl border-2 border-amber-500 bg-amber-50 p-4 text-amber-950 dark:border-amber-400/70 dark:bg-amber-950/40 dark:text-amber-50"
+    >
+      <p className="flex items-center gap-2 text-xl font-semibold">
+        <TriangleAlert aria-hidden className="size-6 shrink-0 text-amber-600 dark:text-amber-300" />
+        Oops! That is the file from Step 1.
+      </p>
+      <p className="text-lg">
+        <strong>RollingSparks</strong> is the team code you downloaded. Your new work is not in
+        it.
+      </p>
+      <div className="text-lg">
+        <p className="font-semibold">Do this instead:</p>
+        <ol className="mt-1 flex list-decimal flex-col gap-2 pl-7 marker:font-semibold">
+          <li>Go back to the Pybricks tab.</li>
+          <li>
+            Click the <strong>box with a down arrow</strong>
+            <PybricksIcon icon="backupAll" />
+            (<strong>Backup all files</strong>).
+          </li>
+          <li>
+            Come back here. Click <strong>Choose zip file</strong> and pick the file that starts
+            with <strong>pybricks-backup</strong>.
+          </li>
+        </ol>
+      </div>
+      <div>
+        <Button size="xl" type="button" variant="outline" onClick={onPickAgain} disabled={disabled}>
+          Choose a different file
+        </Button>
+      </div>
+      {isCoach ? (
+        <p className="text-sm text-amber-900/80 dark:text-amber-100/80">
+          Coaches: you can still upload this file if you meant to.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function UploadStatusMessage({
+  status,
+  isCoach,
+  onPickAgain,
+}: {
+  status: UploadStatus;
+  isCoach: boolean;
+  onPickAgain: () => void;
+}) {
+  if (status.kind === "same-zip") {
+    return <SameZipWarning isCoach={isCoach} onPickAgain={onPickAgain} />;
+  }
+  if (status.kind === "error") {
+    return (
+      <Alert variant="destructive" className="max-w-xl border-2 border-destructive/60 p-4">
+        <CircleAlert aria-hidden className="size-5!" />
+        <AlertDescription className="text-base">{status.text}</AlertDescription>
+      </Alert>
+    );
+  }
+  return (
+    <div
+      role="status"
+      className="flex max-w-xl items-start gap-3 rounded-xl border-2 border-present/50 bg-present-tint p-4 text-present-ink"
+    >
+      <CircleCheckBig aria-hidden className="mt-0.5 size-8 shrink-0 text-present" />
+      <div className="flex flex-col gap-1">
+        <p className="text-2xl font-semibold">Done!</p>
+        <p className="text-lg">{status.text}</p>
+      </div>
+    </div>
   );
 }
 
@@ -151,10 +265,45 @@ export function TeamProjectHome({
   const [message, setMessage] = useState("");
   const [noteMissing, setNoteMissing] = useState(false);
   const [downloadNote, setDownloadNote] = useState<Note | null>(null);
-  const [uploadNote, setUploadNote] = useState<Note | null>(null);
+  const [uploadStatus, setUploadStatus] = useState<UploadStatus | null>(null);
   const [pending, setPending] = useState(false);
+  const [pickedHasDownloadComment, setPickedHasDownloadComment] = useState(false);
+  const pickedFileRef = useRef<File | null>(null);
+  const uploadStatusRef = useRef<HTMLDivElement>(null);
 
-  const pickedDownloadedZip = file?.name.toLowerCase().startsWith("rollingsparks") ?? false;
+  const pickedLooksLikeDownload =
+    file !== null && (hasDownloadName(file.name) || pickedHasDownloadComment);
+
+  useEffect(() => {
+    if (uploadStatus) {
+      scrollIntoViewGently(uploadStatusRef.current);
+    }
+  }, [uploadStatus]);
+
+  function openFilePicker() {
+    fileInputRef.current?.click();
+  }
+
+  function setPickedFile(picked: File | null) {
+    setFile(picked);
+    setPickedHasDownloadComment(false);
+    pickedFileRef.current = picked;
+    if (!picked) {
+      return;
+    }
+    void readZipComment(picked).then((comment) => {
+      if (pickedFileRef.current === picked && hasDownloadComment(comment)) {
+        setPickedHasDownloadComment(true);
+      }
+    });
+  }
+
+  function clearPickedFile() {
+    setPickedFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }
 
   async function onDownload() {
     setDownloadNote(null);
@@ -226,19 +375,19 @@ export function TeamProjectHome({
 
   async function onUpload(event: React.FormEvent) {
     event.preventDefault();
-    setUploadNote(null);
+    setUploadStatus(null);
     if (!file) {
-      setUploadNote({ kind: "error", text: PICK_BACKUP_FIRST });
+      setUploadStatus({ kind: "error", text: PICK_BACKUP_FIRST });
       return;
     }
     if (!file.name.toLowerCase().endsWith(".zip")) {
-      setUploadNote({ kind: "error", text: NOT_A_ZIP });
+      setUploadStatus({ kind: "error", text: NOT_A_ZIP });
       return;
     }
     const note = message.trim();
     if (!note) {
       setNoteMissing(true);
-      setUploadNote({ kind: "error", text: UPLOAD_NOTE_REQUIRED_ERROR });
+      setUploadStatus({ kind: "error", text: UPLOAD_NOTE_REQUIRED_ERROR });
       noteInputRef.current?.focus();
       return;
     }
@@ -257,7 +406,7 @@ export function TeamProjectHome({
         contentType?: string;
       };
       if (!presign.ok || !presignBody.url || !presignBody.key) {
-        setUploadNote({ kind: "error", text: presignBody.error || UPLOAD_FAILED });
+        setUploadStatus({ kind: "error", text: presignBody.error || UPLOAD_FAILED });
         return;
       }
 
@@ -267,7 +416,7 @@ export function TeamProjectHome({
         body: file,
       });
       if (!put.ok) {
-        setUploadNote({ kind: "error", text: UPLOAD_FAILED });
+        setUploadStatus({ kind: "error", text: UPLOAD_FAILED });
         return;
       }
 
@@ -278,42 +427,44 @@ export function TeamProjectHome({
         baseSha: readDownloadSha() || headSha,
       });
       if ("error" in result && result.error) {
-        setUploadNote({ kind: "error", text: result.error });
+        if (result.code === SAME_ZIP_ERROR_CODE) {
+          clearPickedFile();
+          setUploadStatus({ kind: "same-zip" });
+          return;
+        }
+        setUploadStatus({ kind: "error", text: result.error });
         return;
       }
       if (!("status" in result) || !result.status) {
-        setUploadNote({ kind: "error", text: UPLOAD_FAILED });
+        setUploadStatus({ kind: "error", text: UPLOAD_FAILED });
         return;
       }
       if (result.status === "conflict") {
         const count = result.conflictCount ?? 0;
-        setUploadNote({
-          kind: "info",
-          text: `Done! Your work is saved. A coach needs to check ${count} file${
+        setUploadStatus({
+          kind: "done",
+          text: `Your work is saved. A coach needs to check ${count} file${
             count === 1 ? "" : "s"
           } before your changes join the team code.`,
         });
       } else if (result.status === "seeded") {
-        setUploadNote({
-          kind: "info",
-          text: "Done! You saved the first team code. Next time you code, start again at Step 1.",
+        setUploadStatus({
+          kind: "done",
+          text: "You saved the first team code. Next time you code, start again at Step 1.",
         });
       } else {
-        setUploadNote({
-          kind: "info",
-          text: "Done! Your changes are in the team code. Next time you code, start again at Step 1.",
+        setUploadStatus({
+          kind: "done",
+          text: "Your changes are in the team code. Next time you code, start again at Step 1.",
         });
         if ("sha" in result && result.sha) {
           rememberDownloadSha(result.sha);
         }
       }
-      setFile(null);
+      clearPickedFile();
       setMessage("");
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
     } catch {
-      setUploadNote({ kind: "error", text: UPLOAD_FAILED });
+      setUploadStatus({ kind: "error", text: UPLOAD_FAILED });
     } finally {
       setPending(false);
     }
@@ -497,8 +648,8 @@ export function TeamProjectHome({
                     aria-hidden="true"
                     disabled={!storageReady || pending}
                     onChange={(event) => {
-                      setUploadNote(null);
-                      setFile(event.target.files?.[0] ?? null);
+                      setUploadStatus(null);
+                      setPickedFile(event.target.files?.[0] ?? null);
                     }}
                   />
                   <Button
@@ -506,7 +657,7 @@ export function TeamProjectHome({
                     type="button"
                     variant="outline"
                     disabled={!storageReady || pending}
-                    onClick={() => fileInputRef.current?.click()}
+                    onClick={openFilePicker}
                   >
                     Choose zip file
                   </Button>
@@ -525,11 +676,14 @@ export function TeamProjectHome({
                     <span className="text-muted-foreground">No file picked yet.</span>
                   )}
                 </p>
-                {pickedDownloadedZip ? (
-                  <p className="mt-2 font-medium text-destructive">
-                    That is the file from Step 1. Click Choose zip file again and pick your
-                    pybricks-backup file.
-                  </p>
+                {pickedLooksLikeDownload ? (
+                  <div className="mt-3">
+                    <SameZipWarning
+                      isCoach={isCoach}
+                      onPickAgain={openFilePicker}
+                      disabled={!storageReady || pending}
+                    />
+                  </div>
                 ) : null}
               </li>
               <li>
@@ -560,13 +714,22 @@ export function TeamProjectHome({
                     {pending ? "Uploading… please wait" : "Upload to team code"}
                   </Button>
                 </div>
-                <p className="mt-2">
-                  Wait until you see a message that starts with <strong>Done!</strong>
-                </p>
+                <div ref={uploadStatusRef} className="mt-3 scroll-my-6">
+                  {uploadStatus ? (
+                    <UploadStatusMessage
+                      status={uploadStatus}
+                      isCoach={isCoach}
+                      onPickAgain={openFilePicker}
+                    />
+                  ) : (
+                    <p>
+                      Wait until you see a message that starts with <strong>Done!</strong>
+                    </p>
+                  )}
+                </div>
               </li>
             </ol>
           </form>
-          <NoteAlert note={uploadNote} />
         </li>
       </ol>
 
