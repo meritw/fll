@@ -714,7 +714,7 @@ export function TeamProjectHome({
                     {pending ? "Uploading… please wait" : "Upload to team code"}
                   </Button>
                 </div>
-                <div ref={uploadStatusRef} className="mt-3 scroll-my-6">
+                <div ref={uploadStatusRef} className="mt-3 scroll-my-10">
                   {uploadStatus ? (
                     <UploadStatusMessage
                       status={uploadStatus}
