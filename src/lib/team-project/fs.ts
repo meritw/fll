@@ -87,6 +87,12 @@ export async function unzipIntoMemfs(
 export async function unzipProjectFiles(
   zipBytes: Uint8Array | Buffer,
 ): Promise<Map<string, Uint8Array>> {
+  return (await unzipProjectArchive(zipBytes)).files;
+}
+
+export async function unzipProjectArchive(
+  zipBytes: Uint8Array | Buffer,
+): Promise<{ files: Map<string, Uint8Array>; comment: string | null }> {
   const zip = await JSZip.loadAsync(zipBytes);
   const files = new Map<string, Uint8Array>();
   for (const name of Object.keys(zip.files)) {
@@ -105,16 +111,24 @@ export async function unzipProjectFiles(
     const data = await entry.async("uint8array");
     files.set(normalized, data);
   }
-  return files;
+  const comment = (zip as JSZip & { comment?: string | null }).comment;
+  return { files, comment: comment || null };
 }
 
-export async function zipProjectFiles(files: Map<string, Uint8Array>): Promise<Buffer> {
+export async function zipProjectFiles(
+  files: Map<string, Uint8Array>,
+  options: { comment?: string } = {},
+): Promise<Buffer> {
   const zip = new JSZip();
   const paths = [...files.keys()].sort();
   for (const path of paths) {
     zip.file(path, files.get(path)!);
   }
-  const bytes = await zip.generateAsync({ type: "uint8array", compression: "DEFLATE" });
+  const bytes = await zip.generateAsync({
+    type: "uint8array",
+    compression: "DEFLATE",
+    comment: options.comment,
+  });
   return Buffer.from(bytes);
 }
 

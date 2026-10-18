@@ -739,7 +739,7 @@ export async function saveMeetingMedia(input: {
 }
 
 export type TeamProjectUploadResult =
-  | { error: string }
+  | { error: string; code?: string }
   | { status: "seeded" | "merged"; sha: string; uploadId: string }
   | { status: "conflict"; uploadId: string; conflictCount: number };
 
@@ -762,9 +762,13 @@ export async function submitTeamProjectUpload(input: {
     fileName: input.fileName,
     message: input.message,
     baseSha: input.baseSha,
+    isCoach: isCoach(session.user.role),
   });
   if ("error" in result) {
-    return { error: result.error ?? "Upload failed." };
+    return {
+      error: result.error ?? "Upload failed.",
+      ...("code" in result && result.code ? { code: result.code } : {}),
+    };
   }
   revalidatePath("/home");
   revalidatePath("/conflicts");

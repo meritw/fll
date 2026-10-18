@@ -28,6 +28,7 @@ import {
   stageAllAndCommit,
   treeAtCommit,
   unzipIntoMemfs,
+  unzipProjectArchive,
   unzipProjectFiles,
   zipMemfs,
   zipProjectFiles,
@@ -35,6 +36,12 @@ import {
 } from "./fs";
 import { TEAM_PROJECT_ID, UPLOAD_NOTE_REQUIRED_ERROR } from "./constants";
 import { mergeTrees } from "./merge";
+import {
+  downloadZipComment,
+  isUnchangedTeamDownload,
+  SAME_ZIP_ERROR,
+  SAME_ZIP_ERROR_CODE,
+} from "./same-zip";
 
 export { PYBRICKS_CODE_URL, TEAM_PROJECT_ID } from "./constants";
 
@@ -215,7 +222,7 @@ export async function buildDownloadZip(): Promise<{
 }> {
   const { fs, vol, dir, project } = await loadRepo();
   const { files } = await readDownloadTree({ fs, dir, headSha: project.headSha });
-  const bytes = await zipProjectFiles(files);
+  const bytes = await zipProjectFiles(files, { comment: downloadZipComment(project.headSha) });
   void vol;
   return {
     bytes,
@@ -295,6 +302,8 @@ export async function ingestTeamProjectUpload(input: {
   fileName: string;
   message: string;
   baseSha?: string | null;
+  /** Coaches may re-upload a download (e.g. while untangling conflicts); students may not. */
+  isCoach?: boolean;
 }) {
   const note = (input.message ?? "").trim();
   if (!note) {
@@ -316,8 +325,9 @@ export async function ingestTeamProjectUpload(input: {
   }
 
   let theirs: Map<string, Uint8Array>;
+  let zipComment: string | null;
   try {
-    theirs = await unzipProjectFiles(zipBytes);
+    ({ files: theirs, comment: zipComment } = await unzipProjectArchive(zipBytes));
   } catch {
     return {
       error:
@@ -342,8 +352,20 @@ export async function ingestTeamProjectUpload(input: {
 
   const { fs, vol, dir, project } = await loadRepo();
 
+  const reuploadedDownload = (downloadedTrees: Array<Map<string, Uint8Array>>) =>
+    !input.isCoach &&
+    isUnchangedTeamDownload({
+      fileName: input.fileName,
+      zipComment,
+      files: theirs,
+      downloadedTrees,
+    });
+
   // First upload seeds the repo.
   if (!project.headSha) {
+    if (reuploadedDownload([starterFiles()])) {
+      return { error: SAME_ZIP_ERROR, code: SAME_ZIP_ERROR_CODE };
+    }
     await replaceWorkingTree(fs, theirs, dir);
     const sha = await stageAllAndCommit({
       fs,
@@ -391,6 +413,11 @@ export async function ingestTeamProjectUpload(input: {
     // No download marker → treat HEAD as base (2-way / last overlapping wins via conflict).
     baseSha = project.headSha;
     base = new Map(ours);
+  }
+
+  const { files: downloadTree } = await readDownloadTree({ fs, dir, headSha: project.headSha });
+  if (reuploadedDownload([ours, base, downloadTree])) {
+    return { error: SAME_ZIP_ERROR, code: SAME_ZIP_ERROR_CODE };
   }
 
   const { result, conflicts } = mergeTrees(base, ours, theirs);
