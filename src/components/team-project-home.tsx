@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { submitTeamProjectUpload } from "@/lib/actions";
 import { browseHref } from "@/lib/team-project/browse-url";
 import { PYBRICKS_CODE_URL, UPLOAD_NOTE_REQUIRED_ERROR } from "@/lib/team-project/constants";
+import { formatTeamStamp } from "@/lib/timezone";
 
 const BASE_SHA_KEY = "rs-team-project-base-sha";
 const DOWNLOAD_FILE_NAME = "RollingSparks.zip";
@@ -642,6 +643,9 @@ export function TeamProjectHome({
                 >
                   <code className="text-sm">{item.sha.slice(0, 7)}</code>
                   <span className="font-medium">{item.uploadedByName}</span>
+                  <span className="text-muted-foreground">
+                    {formatTeamStamp(new Date(item.createdAt))}
+                  </span>
                   <span>{item.message}</span>
                 </Link>
               </li>
