@@ -128,7 +128,7 @@ type RailView = "done" | "current" | "upcoming";
 
 type StepEvent =
   | { type: "select"; step: Step }
-  | { type: "download-succeeded" }
+  | { type: "download-advances-from-1" }
   | { type: "pybricks-opened" };
 
 type HelpContent = {
@@ -147,8 +147,7 @@ function applyStep(current: Step, event: StepEvent): Step {
   switch (event.type) {
     case "select":
       return event.step;
-    case "download-succeeded":
-      // A click during the download may already have left Step 1.
+    case "download-advances-from-1":
       return current === 1 ? 2 : current;
     case "pybricks-opened":
       return 3;
@@ -615,7 +614,7 @@ export function TeamProjectHome({
       anchor.click();
       anchor.remove();
       URL.revokeObjectURL(url);
-      setCurrentStep((current) => applyStep(current, { type: "download-succeeded" }));
+      setCurrentStep((current) => applyStep(current, { type: "download-advances-from-1" }));
     } catch {
       setDownloadFailed(true);
     }
@@ -796,6 +795,20 @@ export function TeamProjectHome({
 
       {beforeSteps}
 
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".zip,application/zip"
+        className="sr-only"
+        tabIndex={-1}
+        aria-hidden="true"
+        disabled={!storageReady || pending}
+        onChange={(event) => {
+          setUploadStatus(null);
+          setPickedFile(event.target.files?.[0] ?? null);
+        }}
+      />
+
       <ol className="flex flex-col gap-4">
         <Rail step={1} currentStep={currentStep} onReopen={reopenStep} reopenDisabled={pending}>
           {(isCurrent) => (
@@ -850,20 +863,6 @@ export function TeamProjectHome({
         <Rail step={3} currentStep={currentStep} onReopen={reopenStep} reopenDisabled={pending}>
           {(isCurrent) => (
             <form onSubmit={onUpload} className="flex flex-col gap-3">
-              {/* Mounted even when this rail is upcoming, so the picker opens in this click. */}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".zip,application/zip"
-                className="sr-only"
-                tabIndex={-1}
-                aria-hidden="true"
-                disabled={!storageReady || pending}
-                onChange={(event) => {
-                  setUploadStatus(null);
-                  setPickedFile(event.target.files?.[0] ?? null);
-                }}
-              />
               <div>
                 <Button
                   size="xl"
