@@ -2,9 +2,11 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { CircleAlert, CircleCheckBig, TriangleAlert } from "lucide-react";
+import { Check, CircleAlert, CircleCheckBig, TriangleAlert } from "lucide-react";
+import { cn } from "cn";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -117,6 +119,284 @@ function PybricksIcon({ icon }: { icon: keyof typeof PYBRICKS_ICONS }) {
         backgroundPosition: `${-x * scale}px ${-y * scale}px`,
       }}
     />
+  );
+}
+
+type Step = 1 | 2 | 3;
+
+type RailView = "done" | "current" | "upcoming";
+
+type StepEvent =
+  | { type: "select"; step: Step }
+  | { type: "download-advances-from-1" }
+  | { type: "pybricks-opened" };
+
+type HelpContent = {
+  steps: ReactNode[];
+  tips?: ReactNode[];
+  screenshot?: { src: string; alt: string };
+};
+
+type StepCopy = {
+  title: string;
+  hint: ReactNode;
+  help: HelpContent;
+};
+
+function applyStep(current: Step, event: StepEvent): Step {
+  switch (event.type) {
+    case "select":
+      return event.step;
+    case "download-advances-from-1":
+      return current === 1 ? 2 : current;
+    case "pybricks-opened":
+      return 3;
+  }
+}
+
+function railView(step: Step, currentStep: Step): RailView {
+  if (step < currentStep) {
+    return "done";
+  }
+  if (step === currentStep) {
+    return "current";
+  }
+  return "upcoming";
+}
+
+function ctaVariant(primary: boolean): "default" | "outline" {
+  return primary ? "default" : "outline";
+}
+
+const UPLOAD_SHOT = {
+  src: "/pybricks-upload-rolling-sparks.png",
+  alt: "Pybricks screen. A red arrow points to the up arrow icon above the file list. Text: Start Here, Upload RollingSparks.zip.",
+};
+
+const BACKUP_SHOT = {
+  src: "/pybricks-backup-all-files.png",
+  alt: "Pybricks screen. A green arrow points to the box with a down arrow icon above the file list. Text: When you are done, click Backup All Files and save the zip file.",
+};
+
+const STEP_COPY: Record<Step, StepCopy> = {
+  1: {
+    title: "Download the team code",
+    hint: "Get the team's newest code.",
+    help: {
+      steps: [
+        <>
+          Click <strong>Download RollingSparks.zip</strong>.
+        </>,
+        <>
+          Your computer saves <strong>RollingSparks.zip</strong> in your <strong>Downloads</strong>{" "}
+          folder. If a Save window pops up, click <strong>Save</strong>.
+        </>,
+      ],
+    },
+  },
+  2: {
+    title: "Open Pybricks and load the team code",
+    hint: (
+      <>
+        In Pybricks, click the up arrow <PybricksIcon icon="importFile" /> and pick{" "}
+        <strong>RollingSparks.zip</strong>.
+      </>
+    ),
+    help: {
+      steps: [
+        <>
+          Click <strong>Open Pybricks</strong>.
+        </>,
+        <>
+          Do you see a box that says <strong>Welcome to Pybricks Code</strong>? Click the{" "}
+          <strong>X</strong> in its top right corner to close it.
+        </>,
+        <>
+          Click this <strong>up arrow</strong>
+          <PybricksIcon icon="importFile" />. A window opens. Click <strong>Downloads</strong>.
+          Click <strong>RollingSparks.zip</strong>. Click <strong>Open</strong>.
+        </>,
+        <>
+          Do you see a box that says <strong>Replace existing file?</strong> First click the check
+          box next to <strong>Remember this answer</strong>. Then click the red button{" "}
+          <strong>Replace the existing file with the imported file</strong>.
+        </>,
+        <>
+          Now the team files are in the list on the left. Click a file name to open it. Make your
+          changes.
+        </>,
+      ],
+      tips: [
+        <>
+          Pybricks opens in a new tab. To read the next step, click the{" "}
+          <strong>Coding Page</strong> tab at the top of your browser.
+        </>,
+        <>
+          Don&apos;t see the 3 small icons
+          <PybricksIcon icon="toolbar" />? Click this page icon at the top left
+          <PybricksIcon icon="explorer" />.
+        </>,
+        <>
+          When you point at the up arrow, it says <strong>Import a file</strong>.
+        </>,
+        <>
+          See more than one RollingSparks file? Pick the one with the biggest number, like{" "}
+          <strong>RollingSparks (2).zip</strong>.
+        </>,
+      ],
+      screenshot: UPLOAD_SHOT,
+    },
+  },
+  3: {
+    title: "Back up your work and upload it here",
+    hint: (
+      <>
+        In Pybricks, click the box with a down arrow <PybricksIcon icon="backupAll" />. Then upload
+        that zip here.
+      </>
+    ),
+    help: {
+      steps: [
+        <>
+          In Pybricks, click this <strong>box with a down arrow</strong>
+          <PybricksIcon icon="backupAll" />. When you point at it, it says{" "}
+          <strong>Backup all files</strong>.
+        </>,
+        <>
+          A Save window opens. Click <strong>Downloads</strong>. Click <strong>Save</strong>. Your
+          file&apos;s name starts with <strong>pybricks-backup</strong>.
+        </>,
+        <>
+          Click the <strong>Coding Page</strong> tab at the top of your browser to come back to
+          this page.
+        </>,
+        <>
+          Click <strong>Choose zip file</strong>. A window opens. Click <strong>Downloads</strong>.
+          Click your <strong>pybricks-backup</strong> file. Click <strong>Open</strong>.
+        </>,
+        <>
+          Click <strong>Upload to team code</strong>. Wait until you see a message that starts with{" "}
+          <strong>Done!</strong>.
+        </>,
+      ],
+      tips: [
+        <>
+          Find the 3 small icons on the left side of Pybricks
+          <PybricksIcon icon="toolbar" />.
+        </>,
+        <>No Save window? The file goes into Downloads by itself.</>,
+        <>More than one pybricks-backup file? Pick the one with the newest date in its name.</>,
+        <>
+          Do not pick <strong>RollingSparks.zip</strong>. That is the file from Step 1.
+        </>,
+      ],
+      screenshot: BACKUP_SHOT,
+    },
+  },
+};
+
+function StepBadge({ step, filled }: { step: Step; filled: boolean }) {
+  return (
+    <Badge
+      variant={filled ? "default" : "outline"}
+      aria-hidden
+      className="size-8 shrink-0 rounded-full p-0 text-base font-semibold"
+    >
+      {step}
+    </Badge>
+  );
+}
+
+function NeedHelp({ help }: { help: HelpContent }) {
+  return (
+    <details className="rounded-lg border border-border/80 px-3 py-2">
+      <summary className="cursor-pointer text-base font-medium">Need help?</summary>
+      <div className="mt-3 flex flex-col gap-3 text-base">
+        <ol className="flex list-decimal flex-col gap-2 pl-6 marker:font-semibold">
+          {help.steps.map((item, index) => (
+            <li key={index}>{item}</li>
+          ))}
+        </ol>
+        {help.tips && help.tips.length > 0 ? (
+          <>
+            <p className="font-semibold">Stuck?</p>
+            <ul className="flex list-disc flex-col gap-2 pl-6">
+              {help.tips.map((item, index) => (
+                <li key={index}>{item}</li>
+              ))}
+            </ul>
+          </>
+        ) : null}
+        {help.screenshot ? (
+          // eslint-disable-next-line @next/next/no-img-element -- static instructional screenshot
+          <img
+            src={help.screenshot.src}
+            alt={help.screenshot.alt}
+            className="w-full max-w-xl rounded-lg border border-border/80"
+          />
+        ) : null}
+      </div>
+    </details>
+  );
+}
+
+function Rail({
+  step,
+  currentStep,
+  onReopen,
+  reopenDisabled,
+  children,
+}: {
+  step: Step;
+  currentStep: Step;
+  onReopen: (step: Step) => void;
+  reopenDisabled: boolean;
+  children: (isCurrent: boolean) => ReactNode;
+}) {
+  const view = railView(step, currentStep);
+  const { title, hint, help } = STEP_COPY[step];
+
+  if (view === "done") {
+    return (
+      <li>
+        <Button
+          type="button"
+          variant="ghost"
+          className="h-auto min-h-11 w-full justify-start gap-2 whitespace-normal px-2 py-2 text-left text-base font-medium"
+          disabled={reopenDisabled}
+          onClick={() => onReopen(step)}
+        >
+          <Check aria-hidden className="size-5 shrink-0 text-present" strokeWidth={2.5} />
+          <span className="sr-only">Step {step}</span>
+          <span className="min-w-0 flex-1">{title}</span>
+          <span className="shrink-0 text-sm font-normal text-muted-foreground">Show again</span>
+        </Button>
+      </li>
+    );
+  }
+
+  const isCurrent = view === "current";
+  return (
+    <li
+      aria-current={isCurrent ? "step" : undefined}
+      className={cn(
+        "flex flex-col gap-3 rounded-xl border border-border/80 bg-card p-4",
+        isCurrent && "ring-3 ring-primary",
+      )}
+    >
+      <div className="flex items-start gap-3">
+        <StepBadge step={step} filled={isCurrent} />
+        <div className="min-w-0">
+          <h2 className="text-xl font-semibold sm:text-2xl">
+            <span className="sr-only">Step {step}. </span>
+            {title}
+          </h2>
+          <p className="mt-1 text-base text-muted-foreground">{hint}</p>
+        </div>
+      </div>
+      <div className="flex flex-col gap-3">{children(isCurrent)}</div>
+      {isCurrent ? <NeedHelp help={help} /> : null}
+    </li>
   );
 }
 
@@ -265,7 +545,9 @@ export function TeamProjectHome({
   const [file, setFile] = useState<File | null>(null);
   const [message, setMessage] = useState("");
   const [noteMissing, setNoteMissing] = useState(false);
-  const [downloadNote, setDownloadNote] = useState<Note | null>(null);
+  const [currentStep, setCurrentStep] = useState<Step>(1);
+  const [downloadFailed, setDownloadFailed] = useState(false);
+  const [gitNote, setGitNote] = useState<Note | null>(null);
   const [uploadStatus, setUploadStatus] = useState<UploadStatus | null>(null);
   const [pending, setPending] = useState(false);
   const [pickedHasDownloadComment, setPickedHasDownloadComment] = useState(false);
@@ -274,6 +556,11 @@ export function TeamProjectHome({
 
   const pickedLooksLikeDownload =
     file !== null && (hasDownloadName(file.name) || pickedHasDownloadComment);
+  const uploadCta = file && !pickedLooksLikeDownload ? "submit" : "choose";
+
+  function reopenStep(step: Step) {
+    setCurrentStep((current) => applyStep(current, { type: "select", step }));
+  }
 
   useEffect(() => {
     if (uploadStatus) {
@@ -307,14 +594,14 @@ export function TeamProjectHome({
   }
 
   async function onDownload() {
-    setDownloadNote(null);
+    setDownloadFailed(false);
     try {
       const response = await fetch("/api/team-project/download", {
         method: "GET",
         credentials: "same-origin",
       });
       if (!response.ok) {
-        setDownloadNote({ kind: "error", text: DOWNLOAD_FAILED });
+        setDownloadFailed(true);
         return;
       }
       rememberDownloadSha(response.headers.get("X-Team-Project-Sha"));
@@ -327,17 +614,14 @@ export function TeamProjectHome({
       anchor.click();
       anchor.remove();
       URL.revokeObjectURL(url);
-      setDownloadNote({
-        kind: "info",
-        text: "Downloaded! RollingSparks.zip is in your Downloads folder. Now do Step 2.",
-      });
+      setCurrentStep((current) => applyStep(current, { type: "download-advances-from-1" }));
     } catch {
-      setDownloadNote({ kind: "error", text: DOWNLOAD_FAILED });
+      setDownloadFailed(true);
     }
   }
 
   async function onGitDownload() {
-    setDownloadNote(null);
+    setGitNote(null);
     try {
       const response = await fetch("/api/team-project/git-download", {
         method: "GET",
@@ -353,7 +637,7 @@ export function TeamProjectHome({
         } catch {
           // ignore
         }
-        setDownloadNote({ kind: "error", text });
+        setGitNote({ kind: "error", text });
         return;
       }
       const blob = await response.blob();
@@ -365,12 +649,12 @@ export function TeamProjectHome({
       anchor.click();
       anchor.remove();
       URL.revokeObjectURL(url);
-      setDownloadNote({
+      setGitNote({
         kind: "info",
         text: "Downloaded full Git repo (history included) as RollingSparks-git.zip.",
       });
     } catch {
-      setDownloadNote({ kind: "error", text: "Could not download the Git repo." });
+      setGitNote({ kind: "error", text: "Could not download the Git repo." });
     }
   }
 
@@ -511,227 +795,155 @@ export function TeamProjectHome({
 
       {beforeSteps}
 
-      <ol className="flex flex-col gap-6">
-        <li className="flex flex-col gap-4 border-b border-border/80 pb-8">
-          <p className="text-sm font-medium tracking-wide text-primary uppercase">Step 1</p>
-          <h2 className="text-2xl font-semibold">Download the team code</h2>
-          <p className="text-lg text-muted-foreground">
-            Get the team&apos;s current Pybricks project
-          </p>
-          <ol className="flex list-decimal flex-col gap-4 pl-7 text-lg marker:font-semibold">
-            <li>
-              Click this button:
-              <div className="mt-2">
-                <Button size="xl" type="button" onClick={onDownload} disabled={!storageReady}>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".zip,application/zip"
+        className="sr-only"
+        tabIndex={-1}
+        aria-hidden="true"
+        disabled={!storageReady || pending}
+        onChange={(event) => {
+          setUploadStatus(null);
+          setPickedFile(event.target.files?.[0] ?? null);
+        }}
+      />
+
+      <ol className="flex flex-col gap-4">
+        <Rail step={1} currentStep={currentStep} onReopen={reopenStep} reopenDisabled={pending}>
+          {(isCurrent) => (
+            <>
+              <div>
+                <Button
+                  size="xl"
+                  type="button"
+                  variant={ctaVariant(isCurrent)}
+                  onClick={onDownload}
+                  disabled={!storageReady}
+                >
                   Download RollingSparks.zip
                 </Button>
               </div>
-            </li>
-            <li>
-              Your computer saves <strong>RollingSparks.zip</strong> in your{" "}
-              <strong>Downloads</strong> folder. If a Save window pops up, click{" "}
-              <strong>Save</strong>.
-            </li>
-          </ol>
-          <NoteAlert note={downloadNote} />
-        </li>
+              {downloadFailed ? (
+                <NoteAlert note={{ kind: "error", text: DOWNLOAD_FAILED }} />
+              ) : null}
+            </>
+          )}
+        </Rail>
 
-        <li className="flex flex-col gap-4 border-b border-border/80 pb-8">
-          <p className="text-sm font-medium tracking-wide text-primary uppercase">Step 2</p>
-          <h2 className="text-2xl font-semibold">Open Pybricks and load the team code</h2>
-          <p className="text-lg text-muted-foreground">
-            Start here: put RollingSparks.zip into Pybricks.
-          </p>
-          <ol className="flex list-decimal flex-col gap-4 pl-7 text-lg marker:font-semibold">
-            <li>
-              Click this button:
-              <div className="mt-2">
-                <Button asChild size="xl">
-                  <a href={PYBRICKS_CODE_URL} target="_blank" rel="noopener noreferrer">
+        <Rail step={2} currentStep={currentStep} onReopen={reopenStep} reopenDisabled={pending}>
+          {(isCurrent) => (
+            <>
+              <div>
+                <Button asChild size="xl" variant={ctaVariant(isCurrent)}>
+                  <a
+                    href={PYBRICKS_CODE_URL}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() =>
+                      setCurrentStep((current) =>
+                        applyStep(current, { type: "pybricks-opened" }),
+                      )
+                    }
+                  >
                     Open Pybricks
                   </a>
                 </Button>
               </div>
-              <p className="mt-2">
-                Pybricks opens in a new tab. To read the next step, click the{" "}
-                <strong>Coding Page</strong> tab at the top of your browser.
-              </p>
-            </li>
-            <li>
-              Do you see a box that says <strong>Welcome to Pybricks Code</strong>? Click the{" "}
-              <strong>X</strong> in its top right corner to close it.
-            </li>
-            <li>
-              Find these 3 small icons on the left side of Pybricks:
-              <PybricksIcon icon="toolbar" />
-              <p className="mt-2">
-                Don&apos;t see them? Click this page icon at the top left:
-                <PybricksIcon icon="explorer" />
-              </p>
-            </li>
-            <li>
-              Click this <strong>up arrow</strong>:
-              <PybricksIcon icon="importFile" />
-              <p className="mt-2">
-                When you point at it, it says <strong>Import a file</strong>.
-              </p>
-              {/* eslint-disable-next-line @next/next/no-img-element -- static instructional screenshot */}
-              <img
-                src="/pybricks-upload-rolling-sparks.png"
-                alt="Pybricks screen. A red arrow points to the up arrow icon above the file list. Text: Start Here, Upload RollingSparks.zip."
-                className="mt-3 w-full max-w-xl rounded-lg border border-border/80"
-              />
-            </li>
-            <li>
-              A window opens. Click <strong>Downloads</strong>. Click{" "}
-              <strong>RollingSparks.zip</strong>. Click <strong>Open</strong>.
-              <p className="mt-2">
-                See more than one RollingSparks file? Pick the one with the biggest number, like{" "}
-                <strong>RollingSparks (2).zip</strong>.
-              </p>
-            </li>
-            <li>
-              Do you see a box that says <strong>Replace existing file?</strong> First click the
-              check box next to <strong>Remember this answer</strong>. Then click the red button{" "}
-              <strong>Replace the existing file with the imported file</strong>.
-            </li>
-            <li>
-              Now the team files are in the list on the left. Click a file name to open it. Make
-              your changes.
-            </li>
-          </ol>
-        </li>
+              {isCurrent ? (
+                <p className="text-base text-muted-foreground">
+                  It opens in a new tab. Come back to this <strong>Coding Page</strong> tab to read
+                  the steps.
+                </p>
+              ) : null}
+            </>
+          )}
+        </Rail>
 
-        <li className="flex flex-col gap-4">
-          <p className="text-sm font-medium tracking-wide text-primary uppercase">Step 3</p>
-          <h2 className="text-2xl font-semibold">Back up your work and upload it here</h2>
-          <p className="text-lg text-muted-foreground">
-            When you are done, save your work from Pybricks and send it to the team.
-          </p>
-          <form onSubmit={onUpload}>
-            <ol className="flex list-decimal flex-col gap-4 pl-7 text-lg marker:font-semibold">
-              <li>
-                In Pybricks, find the 3 small icons on the left side again:
-                <PybricksIcon icon="toolbar" />
-              </li>
-              <li>
-                Click this <strong>box with a down arrow</strong>:
-                <PybricksIcon icon="backupAll" />
-                <p className="mt-2">
-                  When you point at it, it says <strong>Backup all files</strong>.
-                </p>
-                {/* eslint-disable-next-line @next/next/no-img-element -- static instructional screenshot */}
-                <img
-                  src="/pybricks-backup-all-files.png"
-                  alt="Pybricks screen. A green arrow points to the box with a down arrow icon above the file list. Text: When you are done, click Backup All Files and save the zip file."
-                  className="mt-3 w-full max-w-xl rounded-lg border border-border/80"
-                />
-              </li>
-              <li>
-                A Save window opens. Click <strong>Downloads</strong>. Click{" "}
-                <strong>Save</strong>. Your file&apos;s name starts with{" "}
-                <strong>pybricks-backup</strong>.
-                <p className="mt-2">No Save window? The file goes into Downloads by itself.</p>
-              </li>
-              <li>
-                Click the <strong>Coding Page</strong> tab at the top of your browser to come back
-                to this page.
-              </li>
-              <li>
-                Click this button:
-                <div className="mt-2">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".zip,application/zip"
-                    className="sr-only"
-                    tabIndex={-1}
-                    aria-hidden="true"
-                    disabled={!storageReady || pending}
-                    onChange={(event) => {
-                      setUploadStatus(null);
-                      setPickedFile(event.target.files?.[0] ?? null);
-                    }}
-                  />
-                  <Button
-                    size="xl"
-                    type="button"
-                    variant="outline"
-                    disabled={!storageReady || pending}
-                    onClick={openFilePicker}
-                  >
-                    Choose zip file
-                  </Button>
-                </div>
-                <p className="mt-2">
-                  A window opens. Click <strong>Downloads</strong>. Click your{" "}
-                  <strong>pybricks-backup</strong> file. Click <strong>Open</strong>. More than
-                  one? Pick the one with the newest date in its name.
-                </p>
-                <p className="mt-2" aria-live="polite">
-                  {file ? (
-                    <>
-                      You picked: <strong className="break-all">{file.name}</strong>
-                    </>
-                  ) : (
-                    <span className="text-muted-foreground">No file picked yet.</span>
-                  )}
-                </p>
-                {pickedLooksLikeDownload ? (
-                  <div className="mt-3">
+        <Rail step={3} currentStep={currentStep} onReopen={reopenStep} reopenDisabled={pending}>
+          {(isCurrent) => (
+            <form onSubmit={onUpload} className="flex flex-col gap-3">
+              <div>
+                <Button
+                  size="xl"
+                  type="button"
+                  variant={ctaVariant(isCurrent && uploadCta === "choose")}
+                  disabled={!storageReady || pending}
+                  onClick={() => {
+                    setCurrentStep((current) => applyStep(current, { type: "select", step: 3 }));
+                    openFilePicker();
+                  }}
+                >
+                  Choose zip file
+                </Button>
+              </div>
+              {isCurrent ? (
+                <>
+                  <p className="text-base" aria-live="polite">
+                    {file ? (
+                      <>
+                        You picked: <strong className="break-all">{file.name}</strong>
+                      </>
+                    ) : (
+                      <span className="text-muted-foreground">No file picked yet.</span>
+                    )}
+                  </p>
+                  {pickedLooksLikeDownload ? (
                     <SameZipWarning
                       isCoach={isCoach}
                       onPickAgain={openFilePicker}
                       disabled={!storageReady || pending}
                     />
-                  </div>
-                ) : null}
-              </li>
-              <li>
-                <Label htmlFor="team-note" className="text-lg leading-normal font-normal">
-                  Write a note about what you changed
-                </Label>
-                <Input
-                  ref={noteInputRef}
-                  id="team-note"
-                  value={message}
-                  onChange={(event) => {
-                    setMessage(event.target.value);
-                    if (event.target.value.trim()) {
-                      setNoteMissing(false);
-                    }
-                  }}
-                  className="mt-2 h-12 max-w-xl text-lg md:text-lg"
-                  placeholder="Example: Fixed the turn in mission 3"
-                  aria-required="true"
-                  aria-invalid={noteMissing}
-                  disabled={pending}
-                />
-              </li>
-              <li>
-                Click this button:
-                <div className="mt-2">
-                  <Button size="xl" type="submit" disabled={!storageReady || pending}>
-                    {pending ? "Uploading… please wait" : "Upload to team code"}
-                  </Button>
-                </div>
-                <div ref={uploadStatusRef} className="mt-3 scroll-my-10">
-                  {uploadStatus ? (
-                    <UploadStatusMessage
-                      status={uploadStatus}
-                      isCoach={isCoach}
-                      onPickAgain={openFilePicker}
+                  ) : null}
+                  <div>
+                    <Label htmlFor="team-note" className="text-lg leading-normal font-normal">
+                      Write a note about what you changed
+                    </Label>
+                    <Input
+                      ref={noteInputRef}
+                      id="team-note"
+                      value={message}
+                      onChange={(event) => {
+                        setMessage(event.target.value);
+                        if (event.target.value.trim()) {
+                          setNoteMissing(false);
+                        }
+                      }}
+                      className="mt-2 h-12 max-w-xl text-lg md:text-lg"
+                      placeholder="Example: Fixed the turn in mission 3"
+                      aria-required="true"
+                      aria-invalid={noteMissing}
+                      disabled={pending}
                     />
-                  ) : (
-                    <p>
-                      Wait until you see a message that starts with <strong>Done!</strong>
-                    </p>
-                  )}
-                </div>
-              </li>
-            </ol>
-          </form>
-        </li>
+                  </div>
+                  <div>
+                    <Button
+                      size="xl"
+                      type="submit"
+                      variant={ctaVariant(uploadCta === "submit")}
+                      disabled={!storageReady || pending}
+                    >
+                      {pending ? "Uploading… please wait" : "Upload to team code"}
+                    </Button>
+                  </div>
+                  <div ref={uploadStatusRef} className="scroll-my-10">
+                    {uploadStatus ? (
+                      <UploadStatusMessage
+                        status={uploadStatus}
+                        isCoach={isCoach}
+                        onPickAgain={openFilePicker}
+                      />
+                    ) : (
+                      <p>
+                        Wait until you see a message that starts with <strong>Done!</strong>
+                      </p>
+                    )}
+                  </div>
+                </>
+              ) : null}
+            </form>
+          )}
+        </Rail>
       </ol>
 
       {isCoach ? (
@@ -754,15 +966,13 @@ export function TeamProjectHome({
               download will include the full repo.
             </p>
           ) : (
-            <div className="mt-3">
-              <Button
-                size="xl"
-                type="button"
-                variant="outline"
-                onClick={onGitDownload}
-              >
-                Download full Git repo
-              </Button>
+            <div className="mt-3 flex flex-col gap-3">
+              <div>
+                <Button size="xl" type="button" variant="outline" onClick={onGitDownload}>
+                  Download full Git repo
+                </Button>
+              </div>
+              <NoteAlert note={gitNote} />
             </div>
           )}
         </section>
