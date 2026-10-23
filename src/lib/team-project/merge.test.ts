@@ -100,9 +100,10 @@ describe("mergeOneFile", () => {
     const ours = enc("a\n");
     const theirs = enc("b\n");
     const merged = mergeOneFile("main.py", base, ours, theirs);
-    assert.equal(merged.status, "auto");
-    if (merged.status !== "conflict") {
-      assert.equal(decode(merged.content ?? undefined), "b\n");
+    if (merged.status === "conflict") {
+      assert.fail("expected auto merge, got conflict");
     }
+    assert.equal(merged.status, "auto");
+    assert.equal(decode(merged.content ?? undefined), "b\n");
   });
 });
