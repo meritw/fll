@@ -139,12 +139,19 @@ export function mergeOneFile(
   return { status: "auto", content: encode(joinLines(merged.result)) };
 }
 
+/**
+ * 3-way merge with **overlay** upload semantics (Option B v1).
+ *
+ * Paths present in `theirs` (the uploaded zip) are merged against base/ours as usual.
+ * Paths **absent** from the zip are **not** treated as deletions — teammate files on
+ * HEAD (`ours`) are kept. Intentional delete-via-omission is out of scope for v1.
+ */
 export function mergeTrees(
   base: Map<string, Uint8Array>,
   ours: Map<string, Uint8Array>,
   theirs: Map<string, Uint8Array>,
 ) {
-  const paths = new Set<string>([...base.keys(), ...ours.keys(), ...theirs.keys()]);
+  const paths = new Set<string>([...ours.keys(), ...theirs.keys()]);
   const result = new Map<string, Uint8Array>();
   const conflicts: Array<{
     path: string;
@@ -155,11 +162,20 @@ export function mergeTrees(
   }> = [];
 
   for (const path of [...paths].sort()) {
+    // Missing from zip → keep HEAD (no delete-via-omission).
+    if (!theirs.has(path)) {
+      const keep = ours.get(path);
+      if (keep) {
+        result.set(path, keep);
+      }
+      continue;
+    }
+
     const merged = mergeOneFile(
       path,
       base.get(path) ?? null,
       ours.get(path) ?? null,
-      theirs.get(path) ?? null,
+      theirs.get(path)!,
     );
     if (merged.status === "conflict") {
       conflicts.push({
