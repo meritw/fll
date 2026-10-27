@@ -61,7 +61,7 @@ export function TimelineRow({
   children: React.ReactNode;
 }) {
   return (
-    <li className="flex gap-3 pb-7 [content-visibility:auto] [contain-intrinsic-size:auto_280px] sm:gap-4">
+    <li className="flex gap-3 pb-7 [content-visibility:auto] [contain-intrinsic-size:auto_720px] sm:gap-4">
       <DateRail date={date} last={last} />
       <div className="min-w-0 flex-1">{children}</div>
     </li>
@@ -122,16 +122,14 @@ function plural(count: number, one: string, many = `${one}s`) {
   return `${count} ${count === 1 ? one : many}`;
 }
 
-/** Full record of one meeting. `mediaLimit` shows a "+N more" tile after that many; every photo stays reachable in the lightbox. */
+/** Full record of one meeting: attendance, notes, robot updates, and every photo and video. */
 export function SessionCard({
   record,
   students,
-  mediaLimit,
   showAddLink = true,
 }: {
   record: SessionRecord;
   students: { id: string; name: string }[];
-  mediaLimit?: number;
   showAddLink?: boolean;
 }) {
   const presentIds = new Set(record.attendees.map((person) => person.id));
@@ -247,8 +245,7 @@ export function SessionCard({
       {record.media.length > 0 ? (
         <MediaGroup
           className="grid grid-cols-[repeat(auto-fill,minmax(130px,1fr))] gap-2"
-          visibleCount={mediaLimit}
-          showCaptions={mediaLimit == null}
+          showCaptions
           items={record.media.map((item) => ({
             id: item.id,
             contentType: item.contentType,
@@ -272,53 +269,6 @@ export function SessionCard({
         </p>
       ) : null}
     </article>
-  );
-}
-
-/** One-card summary of an older meeting; the whole card opens the day. */
-export function SessionSummaryCard({
-  record,
-  studentCount,
-  /** Prefer explicit counts so the parent can omit heavy media/note arrays from the RSC payload. */
-  mediaCount,
-  noteCount,
-}: {
-  record: SessionRecord;
-  studentCount: number;
-  mediaCount?: number;
-  noteCount?: number;
-}) {
-  const counts = sessionCounts(record);
-  const notes = noteCount ?? counts.notes;
-  const media = mediaCount ?? counts.media;
-  const summary =
-    record.progress[0]?.body ?? record.lessons[0]?.body ?? record.otherNotes[0]?.body ?? null;
-  const facts = [
-    record.attendees.length > 0
-      ? `${record.attendees.length} of ${studentCount || record.attendees.length} here`
-      : null,
-    notes > 0 ? plural(notes, "note") : null,
-    media > 0 ? plural(media, "photo") : null,
-    record.robot.length > 0 ? plural(record.robot.length, "robot update") : null,
-  ].filter(Boolean);
-  const headline = sessionHeadline(record);
-  return (
-    <Link
-      href={`/journal/${record.id}`}
-      className="flex flex-col gap-2 rounded-3xl bg-card px-4 py-4 ring-1 ring-line hover:bg-muted/40 sm:px-5"
-    >
-      <span className="flex flex-wrap items-center gap-2">
-        <Pill className="bg-brand-tint text-brand-dark">Meeting · {sessionLabel(record)}</Pill>
-        {facts.length > 0 ? (
-          <span className="text-base text-muted-foreground">{facts.join(" · ")}</span>
-        ) : null}
-      </span>
-      <span className="text-lg leading-snug font-semibold sm:text-xl">{headline}</span>
-      {summary && summary.split("\n")[0] !== headline ? (
-        <span className="line-clamp-2 text-foreground/80">{summary}</span>
-      ) : null}
-      <span className="text-base font-semibold text-primary">Read the whole day</span>
-    </Link>
   );
 }
 
