@@ -213,6 +213,25 @@ export async function treeAtCommit(
   return files;
 }
 
+export async function listCommitOids(fs: GitFs, dir: string, ref: string): Promise<string[]> {
+  const commits = await git.log({ fs, dir, ref });
+  return commits.map((commit) => commit.oid);
+}
+
+export async function readBlobAt(
+  fs: GitFs,
+  dir: string,
+  oid: string,
+  filepath: string,
+): Promise<Uint8Array | null> {
+  try {
+    const { blob } = await git.readBlob({ fs, dir, oid, filepath });
+    return blob;
+  } catch {
+    return null;
+  }
+}
+
 export async function stageAllAndCommit(input: {
   fs: GitFs;
   dir?: string;
