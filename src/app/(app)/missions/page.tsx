@@ -7,6 +7,7 @@ import { MissionDetail } from "@/components/journal/mission-detail";
 import { StatusBar, StatusLegend, StatusPill } from "@/components/journal/status-pill";
 import { listStudents } from "@/lib/accounts";
 import { isWorking, missionCode, type MissionStatus } from "@/lib/mission-status";
+import { missionCard } from "@/lib/missions";
 import { listMissionBoard, listMissionNotes } from "@/lib/missions-board";
 import { isCoach, isParent, isStudent } from "@/lib/roles";
 import { requireUser } from "@/lib/session";
@@ -195,6 +196,7 @@ export default async function MissionsPage({ searchParams }: PageProps) {
                   : null,
               assignees: selected.assignees,
             }}
+            card={missionCard(selected.number)}
             notes={notes.map((note) => ({
               id: note.id,
               body: note.body,

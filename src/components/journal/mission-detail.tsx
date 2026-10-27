@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { X } from "lucide-react";
+import { Dialog } from "radix-ui";
 import { cn } from "cn";
 
 import { SaveStatus, type SaveState } from "@/components/journal/save-status";
@@ -27,6 +28,7 @@ type Person = { id: string; name: string };
 
 export function MissionDetail({
   mission,
+  card,
   notes,
   viewer,
   students,
@@ -39,6 +41,7 @@ export function MissionDetail({
     lastChange: string | null;
     assignees: Person[];
   };
+  card?: { src: string; width: number; height: number } | null;
   notes: { id: string; body: string; byline: string }[];
   viewer: { id: string; role: "student" | "coach" | "parent" | "other" };
   students: (Person & { load: number })[];
@@ -52,11 +55,13 @@ export function MissionDetail({
   const [note, setNote, clearNote] = useDraft(`draft:mission:${mission.id}`);
   const [noteSave, setNoteSave] = useState<SaveState>(null);
   const [notePending, setNotePending] = useState(false);
+  const [cardOpen, setCardOpen] = useState(false);
 
   const coach = viewer.role === "coach";
   const student = viewer.role === "student";
   const canEdit = coach || student;
   const onTeam = team.some((person) => person.id === viewer.id);
+  const cardAlt = `Official card for mission ${mission.number}, ${mission.name}. It shows the model and how the mission scores.`;
 
   /** Apply a change now, save it, and roll back if the save fails. */
   function autoSave(
@@ -150,6 +155,64 @@ export function MissionDetail({
           {mission.name}
         </h2>
       </div>
+
+      {card ? (
+        <Dialog.Root open={cardOpen} onOpenChange={setCardOpen}>
+          <div className="flex flex-col items-center gap-2">
+            <Dialog.Trigger
+              aria-describedby="mission-card-hint"
+              className="max-w-full cursor-zoom-in rounded-2xl bg-white p-2 ring-1 ring-line outline-none hover:ring-foreground/30 focus-visible:ring-3 focus-visible:ring-ring"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={card.src}
+                width={card.width}
+                height={card.height}
+                alt={cardAlt}
+                className="h-auto max-h-88 w-auto max-w-full rounded-xl object-contain"
+              />
+            </Dialog.Trigger>
+            <p id="mission-card-hint" className="text-sm text-muted-foreground">
+              Tap the card to read how it scores.
+            </p>
+          </div>
+
+          <Dialog.Portal>
+            <Dialog.Overlay className="fixed inset-0 z-50 bg-black data-open:animate-in data-open:fade-in-0 data-closed:animate-out data-closed:fade-out-0" />
+            <Dialog.Content className="fixed inset-0 z-50 flex flex-col bg-black text-white outline-none">
+              <div className="flex items-center justify-between gap-3 px-4 py-3">
+                <div className="flex min-w-0 flex-col">
+                  <Dialog.Title className="truncate text-lg font-semibold">
+                    Mission {mission.number}: {mission.name}
+                  </Dialog.Title>
+                  <Dialog.Description className="text-sm text-white/70">
+                    Tap the dark space or Close to go back.
+                  </Dialog.Description>
+                </div>
+                <Dialog.Close className="inline-flex min-h-12 shrink-0 items-center gap-2 rounded-full bg-white/10 px-4 text-lg font-semibold text-white outline-none hover:bg-white/20 focus-visible:ring-3 focus-visible:ring-white/60">
+                  <X className="size-6" aria-hidden />
+                  Close
+                </Dialog.Close>
+              </div>
+              <div
+                className="flex min-h-0 flex-1 items-center justify-center px-2 pb-3 sm:px-4 sm:pb-4"
+                onClick={(event) => {
+                  if (event.target === event.currentTarget) setCardOpen(false);
+                }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={card.src}
+                  width={card.width}
+                  height={card.height}
+                  alt={cardAlt}
+                  className="max-h-full max-w-full rounded-2xl bg-white object-contain p-2 sm:p-3"
+                />
+              </div>
+            </Dialog.Content>
+          </Dialog.Portal>
+        </Dialog.Root>
+      ) : null}
 
       <div className="flex flex-col gap-3">
         <h3 className="text-lg font-semibold">Who&apos;s working on it</h3>
