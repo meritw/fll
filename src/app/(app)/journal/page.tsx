@@ -12,7 +12,6 @@ import {
   LooseNoteCard,
   MilestoneCard,
   SessionCard,
-  SessionSummaryCard,
   TimelineRow,
 } from "@/components/journal/timeline";
 import { listStudents } from "@/lib/accounts";
@@ -94,33 +93,6 @@ function keep(item: Item, show: Filter) {
   return false;
 }
 
-function sessionNoteCount(record: SessionRecord) {
-  return (
-    record.progress.length +
-    record.actions.length +
-    record.lessons.length +
-    record.otherNotes.length +
-    record.missionNotes.length
-  );
-}
-
-/** Drop media and extra note bodies from collapsed timeline cards (keeps RSC payload smaller on phones). */
-function summarySessionRecord(record: SessionRecord): SessionRecord {
-  const teaser = record.progress[0] ?? record.lessons[0] ?? record.otherNotes[0] ?? null;
-  return {
-    ...record,
-    media: [],
-    actions: [],
-    missionNotes: [],
-    progress: teaser && record.progress[0] ? [record.progress[0]] : [],
-    lessons: teaser && !record.progress[0] && record.lessons[0] ? [record.lessons[0]] : [],
-    otherNotes:
-      teaser && !record.progress[0] && !record.lessons[0] && record.otherNotes[0]
-        ? [record.otherNotes[0]]
-        : [],
-  };
-}
-
 type PageProps = {
   searchParams: Promise<{ show?: string }>;
 };
@@ -187,7 +159,6 @@ export default async function JournalPage({ searchParams }: PageProps) {
     })),
   ].sort((left, right) => right.at.getTime() - left.at.getTime());
   const items = all.filter((item) => keep(item, show));
-  const newestSessionId = records[0]?.id;
   // Records are newest first; the oldest one is where the season strip starts.
   const firstMeeting = records.at(-1);
 
@@ -425,20 +396,11 @@ export default async function JournalPage({ searchParams }: PageProps) {
                       </TimelineRow>
                     );
                   }
-                  const expanded =
-                    item.record.id === newestSessionId || item.record.dayKey === todayDay;
                   return (
                     <TimelineRow key={item.record.id} date={item.at} last={last}>
-                      {expanded ? (
-                        <SessionCard record={item.record} students={students} mediaLimit={3} />
-                      ) : (
-                        <SessionSummaryCard
-                          record={summarySessionRecord(item.record)}
-                          studentCount={students.length}
-                          mediaCount={item.record.media.length}
-                          noteCount={sessionNoteCount(item.record)}
-                        />
-                      )}
+                      {/* Every meeting stays fully open. A short summary used to hide
+                          photos, videos, and notes on older days. */}
+                      <SessionCard record={item.record} students={students} />
                     </TimelineRow>
                   );
                 })}
