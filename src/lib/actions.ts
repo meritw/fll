@@ -741,13 +741,15 @@ export async function saveMeetingMedia(input: {
 export type TeamProjectUploadResult =
   | { error: string; code?: string }
   | { status: "seeded" | "merged"; sha: string; uploadId: string }
-  | { status: "conflict"; uploadId: string; conflictCount: number };
+  | { status: "conflict"; uploadId: string; conflictCount: number }
+  | { status: "stale"; paths: string[] };
 
 export async function submitTeamProjectUpload(input: {
   objectKey: string;
   fileName: string;
   message: string;
   baseSha?: string | null;
+  staleChoice?: "replace" | "unsure" | null;
 }): Promise<TeamProjectUploadResult> {
   const session = await requireUser();
   if (isParent(session.user.role)) {
@@ -763,6 +765,7 @@ export async function submitTeamProjectUpload(input: {
     message: input.message,
     baseSha: input.baseSha,
     isCoach: isCoach(session.user.role),
+    staleChoice: input.staleChoice,
   });
   if ("error" in result) {
     return {
@@ -770,8 +773,10 @@ export async function submitTeamProjectUpload(input: {
       ...("code" in result && result.code ? { code: result.code } : {}),
     };
   }
-  revalidatePath("/home");
-  revalidatePath("/conflicts");
+  if (result.status !== "stale") {
+    revalidatePath("/home");
+    revalidatePath("/conflicts");
+  }
   return result;
 }
 

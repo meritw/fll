@@ -42,6 +42,13 @@ import {
   SAME_ZIP_ERROR,
   SAME_ZIP_ERROR_CODE,
 } from "./same-zip";
+import {
+  collectOlderBodies,
+  commitPlannedTrees,
+  planUpload,
+  snapshotCommitMessage,
+  type StaleChoice,
+} from "./stale-copy";
 
 export { PYBRICKS_CODE_URL, TEAM_PROJECT_ID } from "./constants";
 
@@ -304,6 +311,11 @@ export async function ingestTeamProjectUpload(input: {
   baseSha?: string | null;
   /** Coaches may re-upload a download (e.g. while untangling conflicts); students may not. */
   isCoach?: boolean;
+  /**
+   * Set after the kid is asked about an older copy.
+   * `replace` puts those bytes on the tip. `unsure` keeps the tip and opens a coach conflict.
+   */
+  staleChoice?: StaleChoice | null;
 }) {
   const note = (input.message ?? "").trim();
   if (!note) {
@@ -410,7 +422,8 @@ export async function ingestTeamProjectUpload(input: {
       base = new Map(ours);
     }
   } else {
-    // No download marker → treat HEAD as base (2-way / last overlapping wins via conflict).
+    // No download marker → treat HEAD as base. A real edit still lands.
+    // An older historical copy is asked about before it can replace the tip.
     baseSha = project.headSha;
     base = new Map(ours);
   }
@@ -420,62 +433,37 @@ export async function ingestTeamProjectUpload(input: {
     return { error: SAME_ZIP_ERROR, code: SAME_ZIP_ERROR_CODE };
   }
 
-  const { result, conflicts } = mergeTrees(base, ours, theirs);
-
-  if (conflicts.length > 0) {
-    await db.insert(teamProjectUpload).values({
-      id: uploadId,
-      projectId: project.id,
-      uploadedById: input.userId,
-      objectKey: input.objectKey,
-      fileName: input.fileName,
-      message,
-      baseSha,
-      status: "conflict",
-      resultCommitSha: null,
-    });
-
-    for (const conflict of conflicts) {
-      const conflictId = crypto.randomUUID();
-      const asText = conflict.kind === "text";
-      const [baseSide, oursSide, theirsSide] = await Promise.all([
-        storeConflictSide(project.id, conflictId, "base", conflict.base, asText),
-        storeConflictSide(project.id, conflictId, "ours", conflict.ours, asText),
-        storeConflictSide(project.id, conflictId, "theirs", conflict.theirs, asText),
-      ]);
-      await db.insert(teamProjectConflict).values({
-        id: conflictId,
-        projectId: project.id,
-        uploadId,
-        path: conflict.path,
-        kind: conflict.kind,
-        status: "open",
-        baseContent: baseSide.content,
-        oursContent: oursSide.content,
-        theirsContent: theirsSide.content,
-        baseObjectKey: baseSide.objectKey,
-        oursObjectKey: oursSide.objectKey,
-        theirsObjectKey: theirsSide.objectKey,
-        uploadedById: input.userId,
-      });
-    }
-
-    return {
-      status: "conflict" as const,
-      uploadId,
-      conflictCount: conflicts.length,
-    };
+  const staleChoice =
+    input.staleChoice === "replace" || input.staleChoice === "unsure" ? input.staleChoice : null;
+  const olderBodies = await collectOlderBodies(fs, dir, project.headSha, ours, [...theirs.keys()]);
+  const planned = planUpload({
+    base,
+    ours,
+    theirs,
+    olderBodies,
+    staleChoice,
+  });
+  if (planned.needsChoice) {
+    return { status: "stale" as const, paths: planned.paths };
   }
 
-  await replaceWorkingTree(fs, result, dir);
-  const sha = await stageAllAndCommit({
+  const { snapshot, tip, conflicts } = planned.plan;
+  const committed = await commitPlannedTrees({
     fs,
     dir,
-    message,
+    parentSha: project.headSha,
+    headTree: ours,
+    snapshot,
+    tip,
+    snapshotMessage: snapshotCommitMessage(message),
+    tipMessage: message,
     name: author.name,
     email: author.email,
   });
+  const sha = committed.headSha;
   await persistRepo(vol, project.id, sha);
+
+  const started = Date.now();
   await db.insert(teamProjectUpload).values({
     id: uploadId,
     projectId: project.id,
@@ -484,19 +472,58 @@ export async function ingestTeamProjectUpload(input: {
     fileName: input.fileName,
     message,
     baseSha,
-    status: "merged",
+    status: conflicts.length > 0 ? "conflict" : "merged",
     resultCommitSha: sha,
   });
-  await db.insert(teamProjectCommit).values({
-    id: crypto.randomUUID(),
-    projectId: project.id,
-    sha,
-    parentSha: project.headSha,
-    baseSha,
-    message,
-    uploadedById: input.userId,
-    uploadObjectKey: input.objectKey,
-  });
+
+  for (const conflict of conflicts) {
+    const conflictId = crypto.randomUUID();
+    const asText = conflict.kind === "text";
+    const [baseSide, oursSide, theirsSide] = await Promise.all([
+      storeConflictSide(project.id, conflictId, "base", conflict.base, asText),
+      storeConflictSide(project.id, conflictId, "ours", conflict.ours, asText),
+      storeConflictSide(project.id, conflictId, "theirs", conflict.theirs, asText),
+    ]);
+    await db.insert(teamProjectConflict).values({
+      id: conflictId,
+      projectId: project.id,
+      uploadId,
+      path: conflict.path,
+      kind: conflict.kind,
+      status: "open",
+      baseContent: baseSide.content,
+      oursContent: oursSide.content,
+      theirsContent: theirsSide.content,
+      baseObjectKey: baseSide.objectKey,
+      oursObjectKey: oursSide.objectKey,
+      theirsObjectKey: theirsSide.objectKey,
+      uploadedById: input.userId,
+    });
+  }
+
+  if (committed.commits.length > 0) {
+    await db.insert(teamProjectCommit).values(
+      committed.commits.map((commit, index) => ({
+        id: crypto.randomUUID(),
+        projectId: project.id,
+        sha: commit.sha,
+        parentSha: commit.parentSha,
+        baseSha,
+        message: commit.message,
+        uploadedById: input.userId,
+        uploadObjectKey: input.objectKey,
+        createdAt: new Date(started + index),
+      })),
+    );
+  }
+
+  if (conflicts.length > 0) {
+    return {
+      status: "conflict" as const,
+      uploadId,
+      conflictCount: conflicts.length,
+    };
+  }
 
   return { status: "merged" as const, sha, uploadId };
 }
@@ -697,7 +724,14 @@ async function finalizeResolvedUpload(input: {
   }
 
   // Re-merge auto paths, then overlay coach resolutions for conflict paths.
+  // A conflict is omitted from the merge result. Keep the tip file until the
+  // coach's choice replaces it, so a resolution cannot delete a teammate file.
   const { result } = mergeTrees(base, ours, theirs);
+  for (const [path, bytes] of ours) {
+    if (!result.has(path)) {
+      result.set(path, bytes);
+    }
+  }
   for (const conflict of conflicts) {
     const bytes = await loadSideBytes({
       content: conflict.resolvedContent,

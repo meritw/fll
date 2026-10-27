@@ -420,7 +420,67 @@ function NoteAlert({ note }: { note: Note | null }) {
 type UploadStatus =
   | { kind: "done"; text: string }
   | { kind: "error"; text: string }
-  | { kind: "same-zip" };
+  | { kind: "same-zip" }
+  | { kind: "stale"; paths: string[] };
+
+type HeldUpload = {
+  objectKey: string;
+  fileName: string;
+  message: string;
+  baseSha: string | null;
+};
+
+function fileList(paths: string[]) {
+  if (paths.length <= 1) {
+    return paths[0] ?? "";
+  }
+  if (paths.length === 2) {
+    return `${paths[0]} and ${paths[1]}`;
+  }
+  return `${paths.slice(0, -1).join(", ")}, and ${paths[paths.length - 1]}`;
+}
+
+function OlderCopyQuestion({
+  paths,
+  pending,
+  onReplace,
+  onUnsure,
+}: {
+  paths: string[];
+  pending: boolean;
+  onReplace: () => void;
+  onUnsure: () => void;
+}) {
+  const one = paths.length === 1;
+  return (
+    <div
+      role="alert"
+      className="flex max-w-xl flex-col gap-3 rounded-xl border-2 border-amber-500 bg-amber-50 p-4 text-amber-950 dark:border-amber-400/70 dark:bg-amber-950/40 dark:text-amber-50"
+    >
+      <p className="text-xl font-semibold">
+        {one
+          ? "Your zip has an older copy of a team file."
+          : "Your zip has older copies of team files."}
+      </p>
+      <p className="text-lg">
+        <strong>{fileList(paths)}</strong> {one ? "is" : "are"} newer on the team site.
+      </p>
+      <p className="text-lg font-semibold">
+        {one
+          ? "Replace the newer team file with your older copy?"
+          : "Replace the newer team files with your older copies?"}
+      </p>
+      <div className="flex flex-col items-start gap-2">
+        <Button size="xl" type="button" onClick={onUnsure} disabled={pending}>
+          I&apos;m not sure
+        </Button>
+        <Button size="xl" type="button" variant="outline" onClick={onReplace} disabled={pending}>
+          Yes, use my older copy
+        </Button>
+      </div>
+    </div>
+  );
+}
 
 function SameZipWarning({
   isCoach,
@@ -493,6 +553,9 @@ function UploadStatusMessage({
       </Alert>
     );
   }
+  if (status.kind === "stale") {
+    return null;
+  }
   return (
     <div
       role="status"
@@ -549,6 +612,7 @@ export function TeamProjectHome({
   const [downloadFailed, setDownloadFailed] = useState(false);
   const [gitNote, setGitNote] = useState<Note | null>(null);
   const [uploadStatus, setUploadStatus] = useState<UploadStatus | null>(null);
+  const [heldUpload, setHeldUpload] = useState<HeldUpload | null>(null);
   const [pending, setPending] = useState(false);
   const [pickedHasDownloadComment, setPickedHasDownloadComment] = useState(false);
   const pickedFileRef = useRef<File | null>(null);
@@ -658,9 +722,102 @@ export function TeamProjectHome({
     }
   }
 
+  function showUploadResult(
+    result: Awaited<ReturnType<typeof submitTeamProjectUpload>>,
+    choice: "replace" | "unsure" | null,
+    paths: string[],
+  ) {
+    if ("error" in result && result.error) {
+      if (result.code === SAME_ZIP_ERROR_CODE) {
+        clearPickedFile();
+        setHeldUpload(null);
+        setUploadStatus({ kind: "same-zip" });
+        return;
+      }
+      setUploadStatus({ kind: "error", text: result.error });
+      return;
+    }
+    if (!("status" in result) || !result.status) {
+      setUploadStatus({ kind: "error", text: UPLOAD_FAILED });
+      return;
+    }
+    if (result.status === "stale") {
+      setUploadStatus({ kind: "stale", paths: result.paths });
+      return;
+    }
+    setHeldUpload(null);
+    const one = paths.length === 1;
+    if (choice === "unsure") {
+      setUploadStatus({
+        kind: "done",
+        text: one
+          ? "The newer team file stays. A coach will check it."
+          : "The newer team files stay. A coach will check them.",
+      });
+    } else if (choice === "replace") {
+      const older = one
+        ? "Your older copy is now the team file."
+        : "Your older copies are now the team files.";
+      const rest =
+        result.status === "conflict"
+          ? " A coach still needs to check the other files."
+          : " Next time you code, start again at Step 1.";
+      setUploadStatus({ kind: "done", text: `${older}${rest}` });
+      if (result.status === "merged" && "sha" in result && result.sha) {
+        rememberDownloadSha(result.sha);
+      }
+    } else if (result.status === "conflict") {
+      const count = result.conflictCount ?? 0;
+      setUploadStatus({
+        kind: "done",
+        text: `Your work is saved. A coach needs to check ${count} file${
+          count === 1 ? "" : "s"
+        } before your changes join the team code.`,
+      });
+    } else if (result.status === "seeded") {
+      setUploadStatus({
+        kind: "done",
+        text: "You saved the first team code. Next time you code, start again at Step 1.",
+      });
+    } else {
+      setUploadStatus({
+        kind: "done",
+        text: "Your changes are in the team code. Next time you code, start again at Step 1.",
+      });
+      if ("sha" in result && result.sha) {
+        rememberDownloadSha(result.sha);
+      }
+    }
+    clearPickedFile();
+    setMessage("");
+  }
+
+  async function onStaleChoice(choice: "replace" | "unsure") {
+    if (!heldUpload || uploadStatus?.kind !== "stale") {
+      return;
+    }
+    const paths = uploadStatus.paths;
+    setPending(true);
+    try {
+      const result = await submitTeamProjectUpload({
+        ...heldUpload,
+        staleChoice: choice,
+      });
+      showUploadResult(result, choice, paths);
+    } catch {
+      setUploadStatus({ kind: "error", text: UPLOAD_FAILED });
+    } finally {
+      setPending(false);
+    }
+  }
+
   async function onUpload(event: React.FormEvent) {
     event.preventDefault();
+    if (uploadStatus?.kind === "stale") {
+      return;
+    }
     setUploadStatus(null);
+    setHeldUpload(null);
     if (!file) {
       setUploadStatus({ kind: "error", text: PICK_BACKUP_FIRST });
       return;
@@ -705,49 +862,15 @@ export function TeamProjectHome({
         return;
       }
 
-      const result = await submitTeamProjectUpload({
+      const held: HeldUpload = {
         objectKey: presignBody.key,
         fileName: file.name,
         message: note,
         baseSha: readDownloadSha() || headSha,
-      });
-      if ("error" in result && result.error) {
-        if (result.code === SAME_ZIP_ERROR_CODE) {
-          clearPickedFile();
-          setUploadStatus({ kind: "same-zip" });
-          return;
-        }
-        setUploadStatus({ kind: "error", text: result.error });
-        return;
-      }
-      if (!("status" in result) || !result.status) {
-        setUploadStatus({ kind: "error", text: UPLOAD_FAILED });
-        return;
-      }
-      if (result.status === "conflict") {
-        const count = result.conflictCount ?? 0;
-        setUploadStatus({
-          kind: "done",
-          text: `Your work is saved. A coach needs to check ${count} file${
-            count === 1 ? "" : "s"
-          } before your changes join the team code.`,
-        });
-      } else if (result.status === "seeded") {
-        setUploadStatus({
-          kind: "done",
-          text: "You saved the first team code. Next time you code, start again at Step 1.",
-        });
-      } else {
-        setUploadStatus({
-          kind: "done",
-          text: "Your changes are in the team code. Next time you code, start again at Step 1.",
-        });
-        if ("sha" in result && result.sha) {
-          rememberDownloadSha(result.sha);
-        }
-      }
-      clearPickedFile();
-      setMessage("");
+      };
+      setHeldUpload(held);
+      const result = await submitTeamProjectUpload(held);
+      showUploadResult(result, null, []);
     } catch {
       setUploadStatus({ kind: "error", text: UPLOAD_FAILED });
     } finally {
@@ -805,6 +928,7 @@ export function TeamProjectHome({
         disabled={!storageReady || pending}
         onChange={(event) => {
           setUploadStatus(null);
+          setHeldUpload(null);
           setPickedFile(event.target.files?.[0] ?? null);
         }}
       />
@@ -921,13 +1045,20 @@ export function TeamProjectHome({
                       size="xl"
                       type="submit"
                       variant={ctaVariant(uploadCta === "submit")}
-                      disabled={!storageReady || pending}
+                      disabled={!storageReady || pending || uploadStatus?.kind === "stale"}
                     >
                       {pending ? "Uploading… please wait" : "Upload to team code"}
                     </Button>
                   </div>
                   <div ref={uploadStatusRef} className="scroll-my-10">
-                    {uploadStatus ? (
+                    {uploadStatus?.kind === "stale" ? (
+                      <OlderCopyQuestion
+                        paths={uploadStatus.paths}
+                        pending={pending}
+                        onReplace={() => void onStaleChoice("replace")}
+                        onUnsure={() => void onStaleChoice("unsure")}
+                      />
+                    ) : uploadStatus ? (
                       <UploadStatusMessage
                         status={uploadStatus}
                         isCoach={isCoach}
