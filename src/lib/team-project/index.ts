@@ -414,16 +414,19 @@ export async function ingestTeamProjectUpload(input: {
   const ours = await treeAtCommit(fs, dir, project.headSha);
   let baseSha = input.baseSha?.trim() || null;
   let base: Map<string, Uint8Array>;
+  /** Only true when we resolved the uploader's download stamp to a real tree. */
+  let baseKnown = false;
   if (baseSha) {
     try {
       base = await treeAtCommit(fs, dir, baseSha);
+      baseKnown = true;
     } catch {
       baseSha = project.headSha;
       base = new Map(ours);
     }
   } else {
-    // No download marker → treat HEAD as base. A real edit still lands.
-    // An older historical copy is asked about before it can replace the tip.
+    // No download marker → treat HEAD as base for merge. Stale-copy prompts
+    // stay off so parallel work without a stamp is not a false positive.
     baseSha = project.headSha;
     base = new Map(ours);
   }
@@ -442,6 +445,7 @@ export async function ingestTeamProjectUpload(input: {
     theirs,
     olderBodies,
     staleChoice,
+    baseKnown,
   });
   if (planned.needsChoice) {
     return { status: "stale" as const, paths: planned.paths };

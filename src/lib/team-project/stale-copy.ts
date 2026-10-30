@@ -108,28 +108,57 @@ function overlay(base: Map<string, Uint8Array>, over: Map<string, Uint8Array>) {
 }
 
 /**
- * Paths whose upload is an older saved copy of that same file.
- * A new file, a new edit, or a header-only Pybricks rewrite of the tip is not stale.
+ * True when the upload for `path` is a historical body that differs from tip.
+ * Header-only Pybricks chrome does not count (via programBody).
+ */
+export function isOlderHistoricalCopy(
+  path: string,
+  ours: Map<string, Uint8Array>,
+  theirs: Map<string, Uint8Array>,
+  olderBodies: Map<string, Set<string>>,
+) {
+  const tip = ours.get(path);
+  const uploaded = theirs.get(path);
+  if (!tip || !uploaded) {
+    return false;
+  }
+  const uploadedBody = programBody(uploaded);
+  if (uploadedBody === programBody(tip)) {
+    return false;
+  }
+  return Boolean(olderBodies.get(path)?.has(uploadedBody));
+}
+
+/**
+ * Paths whose upload is an older saved copy the kid actually chose.
+ *
+ * Untouched since download (`upload` matches `base`) is not stale — that is
+ * parallel work keeping a teammate's tip file. Without a known download stamp,
+ * do not prompt (avoids false positives); the tip is kept instead.
  */
 export function findStaleCopies(input: {
   ours: Map<string, Uint8Array>;
   theirs: Map<string, Uint8Array>;
+  base: Map<string, Uint8Array>;
+  /** False when the uploader had no valid download stamp. */
+  baseKnown?: boolean;
   olderBodies: Map<string, Set<string>>;
 }) {
+  if (input.baseKnown === false) {
+    return [];
+  }
   const stale: string[] = [];
   for (const path of [...input.theirs.keys()].sort()) {
-    const tip = input.ours.get(path);
-    const uploaded = input.theirs.get(path);
-    if (!tip || !uploaded) {
+    if (!isOlderHistoricalCopy(path, input.ours, input.theirs, input.olderBodies)) {
       continue;
     }
-    const uploadedBody = programBody(uploaded);
-    if (uploadedBody === programBody(tip)) {
+    const uploaded = input.theirs.get(path)!;
+    const baseBytes = input.base.get(path);
+    // Same program as at download → kid did not pick an older copy.
+    if (baseBytes && programBody(uploaded) === programBody(baseBytes)) {
       continue;
     }
-    if (input.olderBodies.get(path)?.has(uploadedBody)) {
-      stale.push(path);
-    }
+    stale.push(path);
   }
   return stale;
 }
@@ -177,8 +206,11 @@ export function planUpload(input: {
   theirs: Map<string, Uint8Array>;
   olderBodies: Map<string, Set<string>>;
   staleChoice: StaleChoice | null;
+  /** False when the uploader had no valid download stamp. */
+  baseKnown?: boolean;
 }): { needsChoice: true; paths: string[] } | { needsChoice: false; plan: UploadPlan } {
-  const stalePaths = findStaleCopies(input);
+  const baseKnown = input.baseKnown !== false;
+  const stalePaths = findStaleCopies({ ...input, baseKnown });
   if (stalePaths.length > 0 && !input.staleChoice) {
     return { needsChoice: true, paths: stalePaths };
   }
@@ -208,6 +240,18 @@ export function planUpload(input: {
           ours: oursBytes,
           theirs: uploaded,
         });
+      }
+    }
+  } else if (!baseKnown) {
+    // No download stamp: do not ask, and do not let a historical body
+    // silently replace tip when merge treats HEAD as base.
+    for (const path of input.theirs.keys()) {
+      if (!isOlderHistoricalCopy(path, input.ours, input.theirs, input.olderBodies)) {
+        continue;
+      }
+      const oursBytes = input.ours.get(path);
+      if (oursBytes) {
+        tip.set(path, oursBytes);
       }
     }
   }
