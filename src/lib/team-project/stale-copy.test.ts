@@ -109,7 +109,7 @@ describe("older copy upload", () => {
     const { fs, head, ours } = await tipWithOlderMenu();
     const theirs = new Map<string, Uint8Array>([["keystone2.py", enc("print('keystone')\n")]]);
     const olderBodies = await collectOlderBodies(fs, REPO_DIR, head, ours, [...theirs.keys()]);
-    assert.deepEqual(findStaleCopies({ ours, theirs, olderBodies }), []);
+    assert.deepEqual(findStaleCopies({ base: ours, ours, theirs, olderBodies }), []);
     const planned = planUpload({
       base: ours,
       ours,
@@ -129,7 +129,7 @@ describe("older copy upload", () => {
     const theirs = new Map(ours);
     theirs.set("menu.py", enc("print('brand new menu')\n"));
     const olderBodies = await collectOlderBodies(fs, REPO_DIR, head, ours, ["menu.py"]);
-    assert.deepEqual(findStaleCopies({ ours, theirs, olderBodies }), []);
+    assert.deepEqual(findStaleCopies({ base: ours, ours, theirs, olderBodies }), []);
   });
 
   it("does not warn when only the Pybricks header changed", async () => {
@@ -143,7 +143,7 @@ describe("older copy upload", () => {
     const olderBodies = await collectOlderBodies(fs, REPO_DIR, head, ours, [
       "leaf_cutter_frensie.py",
     ]);
-    assert.deepEqual(findStaleCopies({ ours, theirs, olderBodies }), []);
+    assert.deepEqual(findStaleCopies({ base: ours, ours, theirs, olderBodies }), []);
   });
 
   it("warns when an older program is re-saved with a new Pybricks header", async () => {
@@ -166,7 +166,145 @@ describe("older copy upload", () => {
     const olderBodies = await collectOlderBodies(fs, REPO_DIR, head, ours, [
       "leaf_cutter_frensie.py",
     ]);
-    assert.deepEqual(findStaleCopies({ ours, theirs, olderBodies }), ["leaf_cutter_frensie.py"]);
+    assert.deepEqual(
+      findStaleCopies({ base: ours, ours, theirs, olderBodies }),
+      ["leaf_cutter_frensie.py"],
+    );
+  });
+
+  it("does not warn when a parallel upload still has the download copy of another file", async () => {
+    // A and B both download tip. A edits a.py. B edits only b.py; zip still has old a.py.
+    const { fs } = createMemFs();
+    await initRepo(fs);
+    const aOld = enc("print('a v1')\n");
+    const bOld = enc("print('b v1')\n");
+    const downloadSha = await commitFiles(fs, { "a.py": aOld, "b.py": bOld }, "shared tip");
+    const base = await treeAtCommit(fs, REPO_DIR, downloadSha);
+    const aNew = enc("print('a v2 from A')\n");
+    const head = await commitFiles(fs, { "a.py": aNew }, "A uploaded a.py");
+    const ours = await treeAtCommit(fs, REPO_DIR, head);
+    const bNew = enc("print('b v2 from B')\n");
+    const theirs = new Map(base);
+    theirs.set("b.py", bNew);
+    // theirs still has a.py === download (aOld)
+    assert.equal(bytesEqual(theirs.get("a.py"), aOld), true);
+
+    const olderBodies = await collectOlderBodies(fs, REPO_DIR, head, ours, [...theirs.keys()]);
+    assert.deepEqual(findStaleCopies({ base, ours, theirs, olderBodies, baseKnown: true }), []);
+
+    const planned = planUpload({
+      base,
+      ours,
+      theirs,
+      olderBodies,
+      staleChoice: null,
+      baseKnown: true,
+    });
+    assert.equal(planned.needsChoice, false);
+    if (planned.needsChoice) {
+      return;
+    }
+    assert.equal(bytesEqual(planned.plan.tip.get("a.py"), aNew), true);
+    assert.equal(bytesEqual(planned.plan.tip.get("b.py"), bNew), true);
+    assert.equal(bytesEqual(planned.plan.snapshot.get("a.py"), aOld), true);
+    assert.equal(bytesEqual(planned.plan.snapshot.get("b.py"), bNew), true);
+
+    const committed = await commitPlannedTrees({
+      fs,
+      parentSha: head,
+      headTree: ours,
+      snapshot: planned.plan.snapshot,
+      tip: planned.plan.tip,
+      snapshotMessage: snapshotCommitMessage("B b.py"),
+      tipMessage: "B b.py",
+      name: "Bee",
+      email: "bee@students.local",
+    });
+    const tip = await treeAtCommit(fs, REPO_DIR, committed.headSha);
+    assert.equal(bytesEqual(tip.get("a.py"), aNew), true);
+    assert.equal(bytesEqual(tip.get("b.py"), bNew), true);
+    assert.equal(await historyHas(fs, committed.headSha, "a.py", aOld), true);
+  });
+
+  it("does not warn for parallel work when baseSha is missing; tip stays", async () => {
+    const { fs } = createMemFs();
+    await initRepo(fs);
+    const aOld = enc("print('a v1')\n");
+    const bOld = enc("print('b v1')\n");
+    await commitFiles(fs, { "a.py": aOld, "b.py": bOld }, "shared tip");
+    const aNew = enc("print('a v2 from A')\n");
+    const head = await commitFiles(fs, { "a.py": aNew }, "A uploaded a.py");
+    const ours = await treeAtCommit(fs, REPO_DIR, head);
+    const bNew = enc("print('b v2 from B')\n");
+    const theirs = new Map(ours);
+    theirs.set("a.py", aOld);
+    theirs.set("b.py", bNew);
+
+    const olderBodies = await collectOlderBodies(fs, REPO_DIR, head, ours, [...theirs.keys()]);
+    assert.deepEqual(
+      findStaleCopies({ base: ours, ours, theirs, olderBodies, baseKnown: false }),
+      [],
+    );
+
+    const planned = planUpload({
+      base: ours,
+      ours,
+      theirs,
+      olderBodies,
+      staleChoice: null,
+      baseKnown: false,
+    });
+    assert.equal(planned.needsChoice, false);
+    if (planned.needsChoice) {
+      return;
+    }
+    assert.equal(bytesEqual(planned.plan.tip.get("a.py"), aNew), true);
+    assert.equal(bytesEqual(planned.plan.tip.get("b.py"), bNew), true);
+    assert.equal(bytesEqual(planned.plan.snapshot.get("a.py"), aOld), true);
+  });
+
+  it("still warns when the kid changes a file back to an older historical copy", async () => {
+    const { fs } = createMemFs();
+    await initRepo(fs);
+    const aOld = enc("print('a v1')\n");
+    const bOld = enc("print('b v1')\n");
+    await commitFiles(fs, { "a.py": aOld, "b.py": bOld }, "shared tip");
+    const aNew = enc("print('a v2')\n");
+    const head = await commitFiles(fs, { "a.py": aNew }, "newer a");
+    const base = await treeAtCommit(fs, REPO_DIR, head);
+    const ours = base;
+    // Kid downloaded the newer tip, then put the old a.py back on purpose.
+    const theirs = new Map(base);
+    theirs.set("a.py", aOld);
+
+    const olderBodies = await collectOlderBodies(fs, REPO_DIR, head, ours, [...theirs.keys()]);
+    assert.deepEqual(findStaleCopies({ base, ours, theirs, olderBodies, baseKnown: true }), [
+      "a.py",
+    ]);
+  });
+
+  it("does not warn when parallel zip only changed the Pybricks header on an untouched file", async () => {
+    const { fs } = createMemFs();
+    await initRepo(fs);
+    const aDownload = blocksFile("2.0.0", 10, "print('a v1')");
+    const bOld = enc("print('b v1')\n");
+    const downloadSha = await commitFiles(
+      fs,
+      { "a.py": aDownload, "b.py": bOld },
+      "shared tip",
+    );
+    const base = await treeAtCommit(fs, REPO_DIR, downloadSha);
+    const aTip = blocksFile("2.1.1", 225, "print('a v2')");
+    const head = await commitFiles(fs, { "a.py": aTip }, "A uploaded a.py");
+    const ours = await treeAtCommit(fs, REPO_DIR, head);
+    const bNew = enc("print('b v2')\n");
+    const theirs = new Map(base);
+    // Opened a.py in Pybricks (header only); program still matches download.
+    theirs.set("a.py", blocksFile("2.1.1", 80, "print('a v1')"));
+    theirs.set("b.py", bNew);
+
+    const olderBodies = await collectOlderBodies(fs, REPO_DIR, head, ours, [...theirs.keys()]);
+    assert.deepEqual(findStaleCopies({ base, ours, theirs, olderBodies, baseKnown: true }), []);
   });
 
   it("confirm applies the older bytes on the tip", async () => {
