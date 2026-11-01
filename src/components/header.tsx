@@ -32,6 +32,7 @@ export function Header({
         >
           {!parent ? <NavLink href="/home">Code</NavLink> : null}
           <NavLink href="/missions">Missions</NavLink>
+          <NavLink href="/match-plan">Plan</NavLink>
           <NavLink href="/journal">Journal</NavLink>
           <NavLink href="/gallery">Gallery</NavLink>
           {coach ? <NavLink href="/conflicts">Conflicts</NavLink> : null}
