@@ -1,6 +1,6 @@
 # Moving the database to PostgreSQL 18
 
-The shared Match plan uses Neon Realtime, which runs only on PostgreSQL 18. The app's Neon project, `rolling-sparks`, is on PostgreSQL 17, and Neon can't upgrade a project in place. So the app database moves to a new Neon project, `rolling-sparks-pg18`. This page is the checklist for that move. Nobody has run any of it against production yet.
+The shared Match plan uses Neon Realtime, which runs only on PostgreSQL 18. The app's Neon project, `rolling-sparks`, is on PostgreSQL 17, and Neon can't upgrade a project in place. So the app database moves to a new Neon project, `rolling-sparks-pg18`. This page is the checklist for that move. It ran against production on November 1, 2026, as recorded at the end of this page.
 
 There are no DNS changes. The site stays on Vercel at www.rollingsparks.org. The move itself is a short write freeze, a copy, two environment variable edits, and a redeploy.
 
@@ -10,8 +10,8 @@ There are no DNS changes. The site stays on Vercel at www.rollingsparks.org. The
 |---|---|---|
 | Name and id | `rolling-sparks` (`odd-resonance-62813161`) | `rolling-sparks-pg18` (`lingering-glade-24452823`) |
 | PostgreSQL | 17 | 18 |
-| Serves production | Yes, unchanged | No |
-| `main` branch | Production data | A rehearsal copy of production plus a test account, `cursorverify`. Step 2 replaces all of it. |
+| Serves production | No. Read-only since the cutover | Yes, since November 1, 2026 |
+| `main` branch | Production data as of the freeze | Production data |
 | Other branches | | `match-plan-shared`, used by the shared Match plan preview and local development |
 | Realtime | Not available | On for `main` and `match-plan-shared` |
 | Logical replication | Off | On (Realtime needs it) |
@@ -128,7 +128,7 @@ Both projects bill for storage while they coexist. Once production stops connect
 
 ## Merge order
 
-1. Do this cutover. Merging the pull request that adds this page changes nothing at runtime.
+1. The cutover, done November 1, 2026. Merging the pull request that adds this page changes nothing at runtime.
 2. Merge the Match plan page, https://github.com/meritw/fll/pull/49.
 3. Merge the shared Match plan pull request. Its migration creates the `match_plan` table on the new database, and it needs the Realtime variables from step 3. Don't merge it before the cutover.
 
@@ -138,3 +138,19 @@ Both projects bill for storage while they coexist. Once production stops connect
 - The app built and ran on a PostgreSQL 18 copy. Sign-in and every page loaded.
 - This branch's Vercel preview ran against the new `main` with the real storage settings. Sign-in, the main pages, a journal photo, a program file download, and the team project download all worked.
 - The freeze and unfreeze commands ran on a PostgreSQL 18 branch. The database refused writes, the freeze ended an open session, `pg_dump` still worked, and unfreezing needed the session override shown above.
+
+## How the cutover went
+
+Times are UTC on November 1, 2026. The copy script ran from branch `cursor/postgres-18-cutover-c2a6`.
+
+| Time | Step | Result |
+|---|---|---|
+| 21:38:42 | 1. Freeze | One idle session ended. A test write was refused. |
+| 21:38:51 | 2. Copy | All 23 tables matched by row count and content hash. |
+| 21:41:38 | 3. Vercel | `DATABASE_URL` and `DATABASE_URL_DIRECT` point at the new project. `NEON_REALTIME_URL` and `NEON_REALTIME_SECRET` were added. |
+| 21:42:52 | 4. Redeploy | Production went live on the new database. `drizzle-kit migrate` had nothing to apply. |
+| 21:45:27 | 5. Checks | Sign-in through the login form, the main pages, a journal photo, a program download, and the team project download all worked on www.rollingsparks.org. Signing in saved a session to the new database. |
+
+The checks used a temporary coach account, `cursorverify`, which was deleted right after. Every table is back to its copied row count. Production has logged no new errors since the switch.
+
+The two preview variables for branch `cursor/postgres-18-cutover-c2a6` are still in Vercel. They now hold the same values as the shared variables, so they change nothing, but they should still be deleted.
