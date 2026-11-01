@@ -32,7 +32,7 @@ function TimeUsed({ label, budget }: { label: string; budget: Budget }) {
         ·
       </span>
       <span className={cn("font-semibold", !budget.over && "text-present-ink")}>
-        {budget.over ? `${formatMatchClock(-budget.leftSec)} over` : `${formatMatchClock(budget.leftSec)} left`}
+        {formatMatchClock(Math.abs(budget.leftSec))} {budget.over ? "over" : "left"}
       </span>
     </p>
   );

@@ -14,7 +14,7 @@ import {
   type ToolChange,
 } from "./plan";
 
-export const RUN_COLORS = ["#e85d4c", "#1f8a7a", "#c48a1a", "#5866d8", "#b04f8e"] as const;
+const RUN_COLORS = ["#e85d4c", "#1f8a7a", "#c48a1a", "#5866d8", "#b04f8e"] as const;
 
 export const SLOT_LABELS: Record<Slot, string> = { front: "Front", rear: "Rear", other: "Other" };
 
@@ -24,9 +24,7 @@ export type AttachmentChip = { slot: Slot; name: string };
 
 export type MissionLineView = {
   mission: PlannedMission;
-  /** "M07" */
-  code: string;
-  /** "Humongous Fungus" */
+  codeLabel: string;
   name: string;
   attachment: AttachmentChip | null;
 };
@@ -75,7 +73,7 @@ export function viewPlan(plan: MatchPlan): PlanView {
       steps.push({
         kind: "toolChange",
         runId: run.id,
-        toolChange: run.toolChange,
+        toolChange: run.toolChangeBefore,
         swaps: SLOTS.filter((slot) => previous.loadout[slot] !== run.loadout[slot]).map((slot) => ({
           slot,
           off: previous.loadout[slot],
@@ -83,8 +81,8 @@ export function viewPlan(plan: MatchPlan): PlanView {
         })),
         move: previous.end === run.start ? null : { from: previous.end, to: run.start },
       });
-      bestSec += run.toolChange.time.bestSec;
-      worstSec += run.toolChange.time.worstSec;
+      bestSec += run.toolChangeBefore.time.bestSec;
+      worstSec += run.toolChangeBefore.time.worstSec;
     }
 
     const view: RunView = {
@@ -95,7 +93,7 @@ export function viewPlan(plan: MatchPlan): PlanView {
       points: run.missions.reduce((sum, mission) => sum + mission.points, 0),
       missions: run.missions.map((mission) => ({
         mission,
-        code: missionCode(mission.code),
+        codeLabel: missionCode(mission.code),
         name: MISSION_NAMES.get(mission.code) ?? "",
         attachment: mission.uses === "none" ? null : { slot: mission.uses, name: run.loadout[mission.uses] },
       })),
@@ -125,6 +123,5 @@ export function suggestedPath(run: Run): PathPoint[] {
 }
 
 export function formatMatchClock(sec: number): string {
-  const safe = Math.max(0, Math.floor(sec));
-  return `${Math.floor(safe / 60)}:${String(safe % 60).padStart(2, "0")}`;
+  return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
 }

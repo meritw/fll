@@ -64,7 +64,7 @@ describe("seed plan", () => {
   it("names each mission line's attachment from its run's loadout", () => {
     assert.deepEqual(missionLine(SEED_PLAN, "m1"), {
       mission: SEED_PLAN.runs[0].missions[0],
-      code: "M01",
+      codeLabel: "M01",
       name: "Drone Survey",
       attachment: { slot: "front", name: "drone hook" },
     });
@@ -108,7 +108,7 @@ describe("reducePlan runs", () => {
       loadout: SEED_PLAN.runs[2].loadout,
       missions: [],
       path: [],
-      toolChange: { time: { bestSec: 15, worstSec: 25 }, note: "" },
+      toolChangeBefore: { time: { bestSec: 15, worstSec: 25 }, note: "" },
     });
     const last = toolChanges(plan)[2];
     assert.deepEqual([last.runId, last.swaps, last.move], ["new-1", [], null]);
@@ -229,7 +229,7 @@ describe("reducePlan edits", () => {
     const plan = apply(SEED_PLAN, { type: "addMission", runId: "r3", code: 13 });
     assert.deepEqual(plan.runs[2].missions.map((mission) => mission.id), ["m4", "new-1"]);
     const line = missionLine(plan, "new-1");
-    assert.deepEqual([line.code, line.name, line.attachment, line.mission.points], ["M13", "Keystone Species", null, 0]);
+    assert.deepEqual([line.codeLabel, line.name, line.attachment, line.mission.points], ["M13", "Keystone Species", null, 0]);
   });
 
   it("removes and moves missions within their run", () => {
@@ -261,7 +261,7 @@ describe("reducePlan edits", () => {
     assert.equal(missionLine(none, "m3").attachment, null);
   });
 
-  it("retimes so the edited end wins and best never passes worst", () => {
+  it("edits a time range so the edited end wins and best never passes worst", () => {
     const time = (patch: { bestSec?: number; worstSec?: number }) =>
       apply(SEED_PLAN, { type: "editMission", missionId: "m1", patch }).runs[0].missions[0].time;
     assert.deepEqual(time({ bestSec: 20 }), { bestSec: 20, worstSec: 25 });
@@ -271,7 +271,7 @@ describe("reducePlan edits", () => {
     assert.deepEqual(time({ worstSec: 1500 }), { bestSec: 15, worstSec: 999 });
   });
 
-  it("edits the tool change before a run with the same retime rule", () => {
+  it("edits the tool change before a run with the same time-range rule", () => {
     const plan = apply(SEED_PLAN, {
       type: "editToolChange",
       runId: "r2",
@@ -316,7 +316,7 @@ const STORED_RUN = {
   loadout: { front: "hook", rear: "", other: "" },
   missions: [STORED_MISSION],
   path: [{ x: 10, y: 20 }],
-  toolChange: { time: { bestSec: 5, worstSec: 9 }, note: "" },
+  toolChangeBefore: { time: { bestSec: 5, worstSec: 9 }, note: "" },
 };
 
 function storedRun(patch: Record<string, unknown>) {
@@ -348,7 +348,7 @@ describe("parsePlan", () => {
       ["runs not a list", { runs: {} }],
       ["unknown home", storedRun({ start: "GREEN" })],
       ["launcher not text", storedRun({ launcher: 7 })],
-      ["missing tool change", storedRun({ toolChange: undefined })],
+      ["missing tool change", storedRun({ toolChangeBefore: undefined })],
       ["loadout slot not text", storedRun({ loadout: { front: 3 } })],
       ["path point missing y", storedRun({ path: [{ x: 1 }] })],
       ["unknown mission code", storedMission({ code: 16 })],
@@ -367,7 +367,7 @@ describe("parsePlan", () => {
       storedRun({
         loadout: { front: "hook" },
         path: [{ x: 150, y: -2 }],
-        toolChange: { time: { bestSec: 40, worstSec: 10 } },
+        toolChangeBefore: { time: { bestSec: 40, worstSec: 10 } },
         missions: [{ id: "m", code: 1, uses: "none", points: 12.4, time: { bestSec: -3, worstSec: 1200 } }],
       }),
     );
@@ -375,7 +375,7 @@ describe("parsePlan", () => {
     const [run] = plan.runs;
     assert.deepEqual(run.loadout, { front: "hook", rear: "", other: "" });
     assert.deepEqual(run.path, [{ x: 100, y: 0 }]);
-    assert.deepEqual(run.toolChange, { time: { bestSec: 10, worstSec: 40 }, note: "" });
+    assert.deepEqual(run.toolChangeBefore, { time: { bestSec: 10, worstSec: 40 }, note: "" });
     assert.deepEqual(run.missions[0], {
       id: "m",
       code: 1,

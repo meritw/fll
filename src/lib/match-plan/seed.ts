@@ -13,7 +13,7 @@ export const SEED_JSON = {
         { id: "m1", code: 1, uses: "front", points: 20, time: { bestSec: 15, worstSec: 25 }, notes: "" },
         { id: "m3", code: 3, uses: "rear", points: 25, time: { bestSec: 20, worstSec: 30 }, notes: "" },
       ],
-      toolChange: { time: { bestSec: 15, worstSec: 25 }, note: "" },
+      toolChangeBefore: { time: { bestSec: 15, worstSec: 25 }, note: "" },
     },
     {
       id: "r2",
@@ -26,7 +26,7 @@ export const SEED_JSON = {
         { id: "m7", code: 7, uses: "rear", points: 30, time: { bestSec: 20, worstSec: 35 }, notes: "" },
         { id: "m12", code: 12, uses: "front", points: 35, time: { bestSec: 25, worstSec: 40 }, notes: "" },
       ],
-      toolChange: { time: { bestSec: 10, worstSec: 20 }, note: "" },
+      toolChangeBefore: { time: { bestSec: 10, worstSec: 20 }, note: "" },
     },
     {
       id: "r3",
@@ -38,7 +38,7 @@ export const SEED_JSON = {
       missions: [
         { id: "m4", code: 4, uses: "front", points: 15, time: { bestSec: 15, worstSec: 25 }, notes: "" },
       ],
-      toolChange: { time: { bestSec: 10, worstSec: 15 }, note: "" },
+      toolChangeBefore: { time: { bestSec: 10, worstSec: 15 }, note: "" },
     },
   ],
 };

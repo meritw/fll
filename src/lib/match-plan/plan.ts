@@ -14,24 +14,22 @@ export type Loadout = Readonly<Record<Slot, string>>;
 
 export type MissionCode = (typeof MISSIONS)[number][0];
 
-/** A point on the mat in percent of its width and height, each 0..100. */
-export type PathPoint = { x: number; y: number };
+export type PathPoint = Readonly<{ x: number; y: number }>;
 
-/** Whole seconds with 0 <= bestSec <= worstSec <= 999. */
-export type SecRange = { bestSec: number; worstSec: number };
+export type SecRange = Readonly<{ bestSec: number; worstSec: number }>;
 
-export type PlannedMission = {
+export type PlannedMission = Readonly<{
   id: string;
   code: MissionCode;
   uses: Slot | "none";
   points: number;
   time: SecRange;
   notes: string;
-};
+}>;
 
-export type ToolChange = { time: SecRange; note: string };
+export type ToolChange = Readonly<{ time: SecRange; note: string }>;
 
-export type Run = {
+export type Run = Readonly<{
   id: string;
   launcher: string;
   start: HomeBase;
@@ -39,12 +37,10 @@ export type Run = {
   loadout: Loadout;
   missions: readonly PlannedMission[];
   path: readonly PathPoint[];
-  /** The stop in home before this run. Not shown or counted for the first run; kept so a reorder never loses it. */
-  toolChange: ToolChange;
-};
+  toolChangeBefore: ToolChange;
+}>;
 
-/** Shared snapshot state: never mutate. reducePlan returns new objects. */
-export type MatchPlan = { runs: readonly Run[] };
+export type MatchPlan = Readonly<{ runs: readonly Run[] }>;
 
 export type RunPatch = Partial<{
   launcher: string;
@@ -94,7 +90,7 @@ export function reducePlan(plan: MatchPlan, command: PlanCommand, newId: () => s
         loadout: last ? last.loadout : EMPTY_LOADOUT,
         missions: [],
         path: [],
-        toolChange: { time: NEW_TOOL_CHANGE_TIME, note: "" },
+        toolChangeBefore: { time: NEW_TOOL_CHANGE_TIME, note: "" },
       };
       return { runs: [...plan.runs, run] };
     }
@@ -121,7 +117,10 @@ export function reducePlan(plan: MatchPlan, command: PlanCommand, newId: () => s
       const { patch } = command;
       return updateRun(plan, command.runId, (run) => ({
         ...run,
-        toolChange: { time: retime(run.toolChange.time, patch), note: patch.note ?? run.toolChange.note },
+        toolChangeBefore: {
+          time: editSecRange(run.toolChangeBefore.time, patch),
+          note: patch.note ?? run.toolChangeBefore.note,
+        },
       }));
     }
     case "addMission": {
@@ -152,7 +151,7 @@ export function reducePlan(plan: MatchPlan, command: PlanCommand, newId: () => s
                 ...mission,
                 uses: patch.uses ?? mission.uses,
                 points: patch.points === undefined ? mission.points : wholeNumber(patch.points),
-                time: retime(mission.time, patch),
+                time: editSecRange(mission.time, patch),
                 notes: patch.notes ?? mission.notes,
               }
             : mission,
@@ -226,8 +225,7 @@ function secRange(bestSec: number, worstSec: number): SecRange {
   return { bestSec: Math.min(a, b), worstSec: Math.max(a, b) };
 }
 
-/** The edited end wins. Raising best past worst lifts worst, and lowering worst under best drops best. */
-function retime(range: SecRange, patch: { bestSec?: number; worstSec?: number }): SecRange {
+function editSecRange(range: SecRange, patch: { bestSec?: number; worstSec?: number }): SecRange {
   const { bestSec, worstSec } = patch;
   if (bestSec !== undefined && worstSec !== undefined) return secRange(bestSec, worstSec);
   if (bestSec !== undefined) {
@@ -283,9 +281,18 @@ function parseRun(raw: unknown): Run | null {
   const loadout = parseLoadout(raw.loadout);
   const missions = parseEach(raw.missions, parseMission);
   const path = parseEach(raw.path, parsePoint);
-  const toolChange = parseToolChange(raw.toolChange);
-  if (!loadout || !missions || !path || !toolChange) return null;
-  return { id: raw.id, launcher: raw.launcher, start: raw.start, end: raw.end, loadout, missions, path, toolChange };
+  const toolChangeBefore = parseToolChange(raw.toolChangeBefore);
+  if (!loadout || !missions || !path || !toolChangeBefore) return null;
+  return {
+    id: raw.id,
+    launcher: raw.launcher,
+    start: raw.start,
+    end: raw.end,
+    loadout,
+    missions,
+    path,
+    toolChangeBefore,
+  };
 }
 
 function parseLoadout(raw: unknown): Loadout | null {

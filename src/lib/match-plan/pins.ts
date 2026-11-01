@@ -15,9 +15,8 @@ export const MISSION_PINS: Record<number, PathPoint> = {
   12: { x: 85.5, y: 36.4 },
 };
 
-/** Duplicate mission 10 near the river fork. */
-export const MISSION_PIN_EXTRAS: Record<number, Array<PathPoint & { note?: string }>> = {
-  10: [{ x: 53.7, y: 36.0, note: "river fork" }],
+export const MISSION_PIN_EXTRAS: Record<number, PathPoint[]> = {
+  10: [{ x: 53.7, y: 36.0 }],
 };
 
 export const HOME_ANCHORS: Record<HomeBase, PathPoint> = {

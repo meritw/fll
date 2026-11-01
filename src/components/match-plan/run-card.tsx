@@ -33,7 +33,7 @@ const USE_CLASSES: Record<Slot | "none", string> = { ...SLOT_CLASSES, none: "bg-
 
 const ACTION_BUTTON = "h-11 px-3 text-base";
 
-export type RunCardProps = {
+type RunCardProps = {
   view: RunView;
   runs: RunView[];
   selected: boolean;
@@ -189,7 +189,7 @@ function MissionLine({
   onToggle: () => void;
   dispatch: PlanDispatch;
 }) {
-  const { mission, code, name, attachment } = line;
+  const { mission, codeLabel, name, attachment } = line;
   return (
     <li className={cn(open && "bg-muted/60")}>
       <button
@@ -200,7 +200,7 @@ function MissionLine({
       >
         <span className="flex min-w-0 flex-1 flex-col gap-1">
           <span className="text-lg leading-snug font-semibold">
-            <span className="font-mono text-base font-medium text-muted-foreground">{code}</span> {name}
+            <span className="font-mono text-base font-medium text-muted-foreground">{codeLabel}</span> {name}
           </span>
           <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
             {attachment ? (
@@ -240,7 +240,7 @@ function MissionEditor({
   dispatch: PlanDispatch;
   onDone: () => void;
 }) {
-  const { mission, code } = line;
+  const { mission, codeLabel } = line;
   const edit = (patch: MissionPatch) => dispatch({ type: "editMission", missionId: mission.id, patch });
   return (
     <div className="flex flex-col gap-4 px-3 pt-1 pb-3">
@@ -321,7 +321,7 @@ function MissionEditor({
 
       <div className="flex flex-wrap items-center gap-2">
         <MoveButtons
-          label={code}
+          label={codeLabel}
           canUp={index > 0}
           canDown={index < count - 1}
           onMove={(by) => dispatch({ type: "moveMission", missionId: mission.id, by })}
@@ -332,7 +332,7 @@ function MissionEditor({
           onClick={() => dispatch({ type: "removeMission", missionId: mission.id })}
         >
           <Trash2 className="size-5" aria-hidden />
-          Remove<span className="sr-only"> {code}</span>
+          Remove<span className="sr-only"> {codeLabel}</span>
         </Button>
         <Button className="ml-auto h-11 px-5 text-base" onClick={onDone}>
           Done
