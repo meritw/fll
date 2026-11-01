@@ -4,14 +4,15 @@ import Image from "next/image";
 import { useEffect, useRef, useState, type PointerEvent, type ReactNode, type Ref } from "react";
 
 import { MAT_HEIGHT, MAT_SRC, MAT_WIDTH, MISSION_PIN_EXTRAS, MISSION_PINS } from "@/lib/match-plan/pins";
-import type { PathPoint } from "@/lib/match-plan/plan";
+import { matPath, samePath, type PathPoint } from "@/lib/match-plan/plan";
+import type { PlanDispatch } from "@/lib/match-plan/sync";
 import { suggestedPath, type RunView } from "@/lib/match-plan/view";
-
-import type { PlanDispatch } from "./use-match-plan";
 
 const MIN_STROKE_STEP = 0.4;
 
-type UndoStack = { runId: string; paths: (readonly PathPoint[])[] };
+// Each entry keeps the path it wrote, so undo turns off once a teammate draws over it.
+type UndoEntry = Readonly<{ before: readonly PathPoint[]; after: readonly PathPoint[] }>;
+type UndoStack = Readonly<{ runId: string; entries: readonly UndoEntry[] }>;
 
 export function MatMap({
   run,
@@ -28,8 +29,10 @@ export function MatMap({
   const strokeRef = useRef<PathPoint[]>([]);
   const [stroke, setStroke] = useState<readonly PathPoint[]>([]);
   const [drawMode, setDrawMode] = useState(false);
-  const [undoStack, setUndoStack] = useState<UndoStack>({ runId: "", paths: [] });
-  const undoPaths = run && undoStack.runId === run.run.id ? undoStack.paths : [];
+  const [undoStack, setUndoStack] = useState<UndoStack>({ runId: "", entries: [] });
+  const entries = run && undoStack.runId === run.run.id ? undoStack.entries : [];
+  const top = entries[entries.length - 1];
+  const canUndo = run !== null && top !== undefined && samePath(run.run.path, top.after);
   const drawing = drawMode && run !== null;
 
   useEffect(() => {
@@ -93,15 +96,14 @@ export function MatMap({
 
   function changePath(path: readonly PathPoint[]) {
     if (!run) return;
-    setUndoStack({ runId: run.run.id, paths: [...undoPaths, run.run.path] });
+    setUndoStack({ runId: run.run.id, entries: [...entries, { before: run.run.path, after: matPath(path) }] });
     dispatch({ type: "editRun", runId: run.run.id, patch: { path } });
   }
 
   function undo() {
-    const previous = undoPaths[undoPaths.length - 1];
-    if (!run || !previous) return;
-    setUndoStack({ runId: run.run.id, paths: undoPaths.slice(0, -1) });
-    dispatch({ type: "editRun", runId: run.run.id, patch: { path: previous } });
+    if (!canUndo) return;
+    setUndoStack({ runId: run.run.id, entries: entries.slice(0, -1) });
+    dispatch({ type: "editRun", runId: run.run.id, patch: { path: top.before } });
   }
 
   function setStrokePoints(points: PathPoint[]) {
@@ -146,7 +148,7 @@ export function MatMap({
         <MatButton icon={Pencil} pressed={drawing} disabled={!run} onClick={() => setDrawMode(!drawMode)}>
           Draw
         </MatButton>
-        <MatButton icon={Undo2} disabled={undoPaths.length === 0} onClick={undo}>
+        <MatButton icon={Undo2} disabled={!canUndo} onClick={undo}>
           Undo
         </MatButton>
         <MatButton icon={Eraser} disabled={!run || run.run.path.length === 0} onClick={() => changePath([])}>

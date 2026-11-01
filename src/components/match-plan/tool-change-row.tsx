@@ -4,10 +4,10 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { ToolChangePatch } from "@/lib/match-plan/plan";
+import type { PlanDispatch } from "@/lib/match-plan/sync";
 import { SLOT_LABELS, type Swap, type ToolChangeView } from "@/lib/match-plan/view";
 
 import { FIELD_CLASS, HomePill, NumberField } from "./controls";
-import type { PlanDispatch } from "./use-match-plan";
 
 export function ToolChangeRow({ view, dispatch }: { view: ToolChangeView; dispatch: PlanDispatch }) {
   const [open, setOpen] = useState(false);

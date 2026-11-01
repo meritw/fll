@@ -124,11 +124,6 @@ export function toOp(plan: MatchPlan, command: PlanCommand, newId: () => string)
   }
 }
 
-export function reducePlan(plan: MatchPlan, command: PlanCommand, newId: () => string): MatchPlan {
-  const op = toOp(plan, command, newId);
-  return op ? applyOp(plan, op) : plan;
-}
-
 /** Returns the same plan reference when nothing changes, so callers can skip a write or a queue entry. */
 export function applyOp(plan: MatchPlan, op: PlanOp): MatchPlan {
   switch (op.type) {
