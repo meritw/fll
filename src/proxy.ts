@@ -13,6 +13,11 @@ function isPublicPath(pathname: string) {
 }
 
 export function proxy(request: NextRequest) {
+  // Server Actions check the session themselves; a redirect here would turn their reply into login HTML.
+  if (request.method === "POST" && request.headers.has("next-action")) {
+    return NextResponse.next();
+  }
+
   const { pathname } = request.nextUrl;
   const isPublic = isPublicPath(pathname);
   const hasSession = Boolean(getSessionCookie(request));
