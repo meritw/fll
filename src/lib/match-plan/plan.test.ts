@@ -37,11 +37,11 @@ function missionLine(plan: MatchPlan, missionId: string) {
 }
 
 describe("seed plan", () => {
-  it("totals best 185 s, worst 300 s, 125 pts, and is over the 150 s match", () => {
+  it("totals 125 pts with a best time that fits the 150 s match and a worst time that runs over", () => {
     const view = viewPlan(SEED_PLAN);
-    assert.deepEqual(totals(SEED_PLAN), { points: 125, bestSec: 185, worstSec: 300 });
-    assert.deepEqual(view.totals.best, { sec: 185, leftSec: -35, over: true });
-    assert.equal(view.totals.worst.leftSec, -150);
+    assert.deepEqual(totals(SEED_PLAN), { points: 125, bestSec: 115, worstSec: 190 });
+    assert.deepEqual(view.totals.best, { sec: 115, leftSec: 35, over: false });
+    assert.deepEqual(view.totals.worst, { sec: 190, leftSec: -40, over: true });
     assert.deepEqual(
       view.runs.map((run) => run.points),
       [45, 65, 15],
@@ -75,7 +75,7 @@ describe("seed plan", () => {
   it("derives each tool change's swaps and home move from its neighbors", () => {
     const [first, second] = toolChanges(SEED_PLAN);
     assert.equal(first.runId, "r2");
-    assert.deepEqual(first.toolChange.time, { bestSec: 20, worstSec: 35 });
+    assert.deepEqual(first.toolChange.time, { bestSec: 10, worstSec: 20 });
     assert.deepEqual(first.swaps, [
       { slot: "front", off: "drone hook", on: "elder grip" },
       { slot: "rear", off: "rock flipper", on: "fungus arm" },
@@ -112,7 +112,7 @@ describe("reducePlan runs", () => {
     });
     const last = toolChanges(plan)[2];
     assert.deepEqual([last.runId, last.swaps, last.move], ["new-1", [], null]);
-    assert.deepEqual(totals(plan), { points: 125, bestSec: 200, worstSec: 325 });
+    assert.deepEqual(totals(plan), { points: 125, bestSec: 130, worstSec: 215 });
   });
 
   it("adds the first run to an empty plan from RED with no tools and no tool change", () => {
@@ -131,8 +131,8 @@ describe("reducePlan runs", () => {
   it("removes a run with the tool change before it", () => {
     const plan = apply(SEED_PLAN, { type: "removeRun", runId: "r2" });
     assert.deepEqual(runIds(plan), ["r1", "r3"]);
-    assert.deepEqual(toolChanges(plan)[0].toolChange.time, { bestSec: 15, worstSec: 25 });
-    assert.deepEqual(totals(plan), { points: 60, bestSec: 90, worstSec: 150 });
+    assert.deepEqual(toolChanges(plan)[0].toolChange.time, { bestSec: 10, worstSec: 15 });
+    assert.deepEqual(totals(plan), { points: 60, bestSec: 60, worstSec: 95 });
   });
 
   it("re-derives swaps and home moves after a reorder", () => {
@@ -159,10 +159,10 @@ describe("reducePlan runs", () => {
       toolChanges(plan).map((change) => [change.runId, change.toolChange.time]),
       [
         ["r1", { bestSec: 15, worstSec: 25 }],
-        ["r3", { bestSec: 15, worstSec: 25 }],
+        ["r3", { bestSec: 10, worstSec: 15 }],
       ],
     );
-    assert.deepEqual(totals(plan), { points: 125, bestSec: 180, worstSec: 290 });
+    assert.deepEqual(totals(plan), { points: 125, bestSec: 120, worstSec: 195 });
   });
 
   it("returns the same plan for moves past either end", () => {
@@ -235,7 +235,7 @@ describe("reducePlan edits", () => {
   it("removes and moves missions within their run", () => {
     const removed = apply(SEED_PLAN, { type: "removeMission", missionId: "m1" });
     assert.deepEqual(removed.runs[0].missions.map((mission) => mission.id), ["m3"]);
-    assert.deepEqual(totals(removed), { points: 105, bestSec: 160, worstSec: 260 });
+    assert.deepEqual(totals(removed), { points: 105, bestSec: 100, worstSec: 165 });
     const moved = apply(SEED_PLAN, { type: "moveMission", missionId: "m3", by: -1 });
     assert.deepEqual(moved.runs[0].missions.map((mission) => mission.id), ["m3", "m1"]);
   });
@@ -264,21 +264,21 @@ describe("reducePlan edits", () => {
   it("retimes so the edited end wins and best never passes worst", () => {
     const time = (patch: { bestSec?: number; worstSec?: number }) =>
       apply(SEED_PLAN, { type: "editMission", missionId: "m1", patch }).runs[0].missions[0].time;
-    assert.deepEqual(time({ bestSec: 30 }), { bestSec: 30, worstSec: 40 });
+    assert.deepEqual(time({ bestSec: 20 }), { bestSec: 20, worstSec: 25 });
     assert.deepEqual(time({ bestSec: 50 }), { bestSec: 50, worstSec: 50 });
     assert.deepEqual(time({ worstSec: 10 }), { bestSec: 10, worstSec: 10 });
     assert.deepEqual(time({ bestSec: 45, worstSec: 12 }), { bestSec: 12, worstSec: 45 });
-    assert.deepEqual(time({ worstSec: 1500 }), { bestSec: 25, worstSec: 999 });
+    assert.deepEqual(time({ worstSec: 1500 }), { bestSec: 15, worstSec: 999 });
   });
 
   it("edits the tool change before a run with the same retime rule", () => {
     const plan = apply(SEED_PLAN, {
       type: "editToolChange",
       runId: "r2",
-      patch: { worstSec: 10, note: "check the grip" },
+      patch: { worstSec: 8, note: "check the grip" },
     });
-    assert.deepEqual(toolChanges(plan)[0].toolChange, { time: { bestSec: 10, worstSec: 10 }, note: "check the grip" });
-    assert.deepEqual(totals(plan), { points: 125, bestSec: 175, worstSec: 275 });
+    assert.deepEqual(toolChanges(plan)[0].toolChange, { time: { bestSec: 8, worstSec: 8 }, note: "check the grip" });
+    assert.deepEqual(totals(plan), { points: 125, bestSec: 113, worstSec: 178 });
   });
 
   it("turns the worst total over the match when a mission's worst time rises", () => {

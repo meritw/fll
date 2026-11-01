@@ -15,8 +15,8 @@ export const SEED_JSON = {
       loadout: { front: "drone hook", rear: "rock flipper", other: "" },
       path: [HOME_ANCHORS.RED, MISSION_PINS[3], MISSION_PINS[1], HOME_ANCHORS.BLUE],
       missions: [
-        { id: "m1", code: 1, uses: "front", points: 20, time: { bestSec: 25, worstSec: 40 }, notes: "" },
-        { id: "m3", code: 3, uses: "rear", points: 25, time: { bestSec: 30, worstSec: 50 }, notes: "" },
+        { id: "m1", code: 1, uses: "front", points: 20, time: { bestSec: 15, worstSec: 25 }, notes: "" },
+        { id: "m3", code: 3, uses: "rear", points: 25, time: { bestSec: 20, worstSec: 30 }, notes: "" },
       ],
       toolChange: { time: { bestSec: 15, worstSec: 25 }, note: "" },
     },
@@ -28,10 +28,10 @@ export const SEED_JSON = {
       loadout: { front: "elder grip", rear: "fungus arm", other: "" },
       path: [HOME_ANCHORS.BLUE, MISSION_PINS[7], MISSION_PINS[12], HOME_ANCHORS.BLUE],
       missions: [
-        { id: "m7", code: 7, uses: "rear", points: 30, time: { bestSec: 35, worstSec: 55 }, notes: "" },
-        { id: "m12", code: 12, uses: "front", points: 35, time: { bestSec: 40, worstSec: 60 }, notes: "" },
+        { id: "m7", code: 7, uses: "rear", points: 30, time: { bestSec: 20, worstSec: 35 }, notes: "" },
+        { id: "m12", code: 12, uses: "front", points: 35, time: { bestSec: 25, worstSec: 40 }, notes: "" },
       ],
-      toolChange: { time: { bestSec: 20, worstSec: 35 }, note: "" },
+      toolChange: { time: { bestSec: 10, worstSec: 20 }, note: "" },
     },
     {
       id: "r3",
@@ -41,9 +41,9 @@ export const SEED_JSON = {
       loadout: { front: "leaf scoop", rear: "", other: "" },
       path: [HOME_ANCHORS.RED, MISSION_PINS[4], HOME_ANCHORS.RED],
       missions: [
-        { id: "m4", code: 4, uses: "front", points: 15, time: { bestSec: 20, worstSec: 35 }, notes: "" },
+        { id: "m4", code: 4, uses: "front", points: 15, time: { bestSec: 15, worstSec: 25 }, notes: "" },
       ],
-      toolChange: { time: { bestSec: 15, worstSec: 25 }, note: "" },
+      toolChange: { time: { bestSec: 10, worstSec: 15 }, note: "" },
     },
   ],
 };
