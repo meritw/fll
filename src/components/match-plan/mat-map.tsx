@@ -9,10 +9,8 @@ import { suggestedPath, type RunView } from "@/lib/match-plan/view";
 
 import type { PlanDispatch } from "./use-match-plan";
 
-/** Pointer samples closer than this, in mat percent, are dropped so a stroke stays small in storage. */
 const MIN_STROKE_STEP = 0.4;
 
-/** Paths this visit replaced, newest last. Kept per run so switching runs never undoes the wrong one. */
 type UndoStack = { runId: string; paths: (readonly PathPoint[])[] };
 
 export function MatMap({
@@ -216,7 +214,6 @@ export function MatMap({
   );
 }
 
-/** Pointer position in mat percent. It does not clamp, because reducePlan owns the 0..100 clamp. */
 function toMatPoint(event: PointerEvent<HTMLCanvasElement>): PathPoint {
   const box = event.currentTarget.getBoundingClientRect();
   return {

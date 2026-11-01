@@ -20,7 +20,6 @@ export const SLOT_LABELS: Record<Slot, string> = { front: "Front", rear: "Rear",
 
 const MISSION_NAMES = new Map<number, string>(MISSIONS);
 
-/** `name` is "" when the run has not named what is on that slot yet. */
 export type AttachmentChip = { slot: Slot; name: string };
 
 export type MissionLineView = {
@@ -29,50 +28,40 @@ export type MissionLineView = {
   code: string;
   /** "Humongous Fungus" */
   name: string;
-  /** The run's loadout at `mission.uses`. Null when the mission uses no attachment. */
   attachment: AttachmentChip | null;
 };
 
 export type RunView = {
   kind: "run";
   run: Run;
-  /** 1-based position, so "Run 2" is always the second run. */
   number: number;
-  /** RUN_COLORS by position. */
   color: string;
   points: number;
   missions: MissionLineView[];
 };
 
-/** `off` or `on` is "" when that side of the slot is empty. */
 export type Swap = { slot: Slot; off: string; on: string };
 
 export type ToolChangeView = {
   kind: "toolChange";
-  /** The run this tool change sits before. */
   runId: string;
   toolChange: ToolChange;
-  /** Slots whose attachment differs between the run before and the run after. Empty means relaunch as is. */
   swaps: Swap[];
-  /** Set when the next run launches from the other home. */
   move: { from: HomeBase; to: HomeBase } | null;
 };
 
 export type StepView = RunView | ToolChangeView;
 
-/** `over` turns the match bar red. */
 export type Budget = { sec: number; leftSec: number; over: boolean };
 
 export type Totals = { points: number; best: Budget; worst: Budget };
 
 export type PlanView = {
-  /** Run 1, the tool change before run 2, run 2, and so on. */
   steps: StepView[];
   runs: RunView[];
   totals: Totals;
 };
 
-/** Everything the page renders, derived in one pass so nothing derived is ever stored. */
 export function viewPlan(plan: MatchPlan): PlanView {
   const steps: StepView[] = [];
   const runs: RunView[] = [];
@@ -127,7 +116,6 @@ function budget(sec: number): Budget {
   return { sec, leftSec: MATCH_SEC - sec, over: sec > MATCH_SEC };
 }
 
-/** Start home, then each mission's pin in order (missions with no pin skipped), then end home. */
 export function suggestedPath(run: Run): PathPoint[] {
   const pins = run.missions.flatMap((mission) => {
     const pin = MISSION_PINS[mission.code];
@@ -136,7 +124,6 @@ export function suggestedPath(run: Run): PathPoint[] {
   return [HOME_ANCHORS[run.start], ...pins, HOME_ANCHORS[run.end]];
 }
 
-/** 150 formats as "2:30". Negative input formats as "0:00"; callers pass the absolute amount over. */
 export function formatMatchClock(sec: number): string {
   const safe = Math.max(0, Math.floor(sec));
   return `${Math.floor(safe / 60)}:${String(safe % 60).padStart(2, "0")}`;

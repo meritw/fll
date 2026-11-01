@@ -5,7 +5,6 @@ import { useState, type ComponentProps } from "react";
 import { Input } from "@/components/ui/input";
 import type { HomeBase } from "@/lib/match-plan/plan";
 
-/** The mat's own home colors, so they stay the same in dark mode. */
 export const HOME_CLASSES: Record<HomeBase, string> = {
   RED: "bg-red-600 text-white",
   BLUE: "bg-blue-600 text-white",
@@ -19,10 +18,6 @@ export function HomePill({ home }: { home: HomeBase }) {
 
 export const FIELD_CLASS = "h-11 bg-card text-lg md:text-base dark:bg-input/30";
 
-/**
- * A whole-number input that lets the box be empty while typing. Each valid edit commits right away;
- * blur shows the stored value again, which the reducer may have clamped.
- */
 export function NumberField({
   value,
   onValue,

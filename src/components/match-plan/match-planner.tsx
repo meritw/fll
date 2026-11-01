@@ -24,7 +24,6 @@ export function MatchPlanner() {
   const selected = view.runs.find((runView) => runView.run.id === selectedRunId) ?? view.runs[0] ?? null;
 
   function addRun() {
-    // Flush so the new card exists before scrolling to it.
     const id = flushSync(() => {
       const added = dispatch({ type: "addRun" });
       setSelectedRunId(added);

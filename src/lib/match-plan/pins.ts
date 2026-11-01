@@ -1,6 +1,5 @@
 import type { HomeBase, PathPoint } from "./plan";
 
-/** Official mat 1064×530. Marker centers as % from interactive-RGR PNG. */
 export const MISSION_PINS: Record<number, PathPoint> = {
   1: { x: 45.7, y: 88.5 },
   2: { x: 36.3, y: 53.2 },

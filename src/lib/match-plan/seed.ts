@@ -1,10 +1,5 @@
 import { HOME_ANCHORS, MISSION_PINS } from "./pins";
 
-/**
- * The sample plan as stored JSON. plan.ts parses it through the same gate as saved data, so a bad
- * seed fails at import and in the tests. Run 1's rock flipper sits on the rear slot, because one
- * slot holds one attachment.
- */
 export const SEED_JSON = {
   runs: [
     {

@@ -2,7 +2,6 @@ import { MISSIONS } from "@/lib/missions";
 
 import { SEED_JSON } from "./seed";
 
-/** Robot game length. A rule of the game, not plan data. */
 export const MATCH_SEC = 150;
 
 export const HOMES = ["RED", "BLUE"] as const;
@@ -11,10 +10,6 @@ export type HomeBase = (typeof HOMES)[number];
 export const SLOTS = ["front", "rear", "other"] as const;
 export type Slot = (typeof SLOTS)[number];
 
-/**
- * What is mounted on each slot when the run launches. "" means nothing is on that slot.
- * One attachment per slot per run, because nobody may touch the robot outside home.
- */
 export type Loadout = Readonly<Record<Slot, string>>;
 
 export type MissionCode = (typeof MISSIONS)[number][0];
@@ -28,7 +23,6 @@ export type SecRange = { bestSec: number; worstSec: number };
 export type PlannedMission = {
   id: string;
   code: MissionCode;
-  /** The slot whose attachment does this mission. Its name comes from the run's loadout. */
   uses: Slot | "none";
   points: number;
   time: SecRange;
@@ -56,9 +50,7 @@ export type RunPatch = Partial<{
   launcher: string;
   start: HomeBase;
   end: HomeBase;
-  /** Merged slot by slot. */
   loadout: Partial<Loadout>;
-  /** Replaces the whole path. `[]` clears it. */
   path: readonly PathPoint[];
 }>;
 
@@ -81,7 +73,6 @@ export type PlanCommand =
   | { type: "removeMission"; missionId: string }
   | { type: "moveMission"; missionId: string; by: -1 | 1 }
   | { type: "editMission"; missionId: string; patch: MissionPatch }
-  /** `runId` is the run the tool change sits before. */
   | { type: "editToolChange"; runId: string; patch: ToolChangePatch }
   | { type: "reset" };
 
@@ -90,16 +81,6 @@ const EMPTY_LOADOUT: Loadout = { front: "", rear: "", other: "" };
 const NEW_TOOL_CHANGE_TIME: SecRange = { bestSec: 15, worstSec: 25 };
 const NEW_MISSION_TIME: SecRange = { bestSec: 20, worstSec: 30 };
 
-/**
- * Pure. `newId` mints the id of an added run or mission: crypto.randomUUID in the app, a counter in tests.
- *
- * Unknown ids and moves past either end return `plan` itself, so a double tap or a command that raced
- * a cross-tab update is a no-op and the store skips the save.
- *
- * A run owns the tool change before it, so moving or removing a run carries its tool change along.
- * Numbers in patches come straight from inputs; the reducer rounds and clamps them, and `retime`
- * keeps best <= worst.
- */
 export function reducePlan(plan: MatchPlan, command: PlanCommand, newId: () => string): MatchPlan {
   switch (command.type) {
     case "addRun": {
@@ -183,14 +164,6 @@ export function reducePlan(plan: MatchPlan, command: PlanCommand, newId: () => s
   }
 }
 
-/**
- * The trust boundary for plan data. `json` is what JSON.parse returned from localStorage, or SEED_JSON.
- *
- * Returns null when the value is not `{ runs: [...] }`, a field has the wrong type, a home or slot is
- * unknown, a mission code is not in MISSIONS, or an id repeats. It repairs without rejecting by
- * rounding and clamping numbers to 0..999, ordering best and worst, clamping path points to 0..100,
- * and filling a missing loadout slot or note with "".
- */
 export function parsePlan(json: unknown): MatchPlan | null {
   if (!isRecord(json) || !Array.isArray(json.runs)) return null;
   const runs = parseEach(json.runs, parseRun);
@@ -213,7 +186,6 @@ function updateRun(plan: MatchPlan, runId: string, update: (run: Run) => Run): M
   return { runs: plan.runs.map((run, i) => (i === index ? update(run) : run)) };
 }
 
-/** Returns `plan` itself when `update` returns the same list. */
 function updateMissions(
   plan: MatchPlan,
   missionId: string,
@@ -228,7 +200,6 @@ function updateMissions(
   return plan;
 }
 
-/** Returns `items` itself when either index is out of range. */
 function swapNeighbors<T>(items: readonly T[], index: number, by: -1 | 1): readonly T[] {
   const target = index + by;
   if (index < 0 || target < 0 || target >= items.length) return items;
@@ -292,7 +263,6 @@ function parseEach<T>(items: readonly unknown[], parse: (raw: unknown) => T | nu
   return parsed;
 }
 
-/** A missing note reads as "". */
 function optionalText(value: unknown): string | null {
   if (value === undefined) return "";
   return typeof value === "string" ? value : null;
