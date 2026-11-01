@@ -1,11 +1,12 @@
 "use client";
 
 import { Plus, RotateCcw } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { flushSync } from "react-dom";
 
 import { Button } from "@/components/ui/button";
 
+import { MatMap } from "./mat-map";
 import { MatchBar } from "./match-bar";
 import { RunCard } from "./run-card";
 import { ToolChangeRow } from "./tool-change-row";
@@ -17,6 +18,7 @@ export function MatchPlanner() {
   const [view, dispatch] = useMatchPlan();
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [addedRunId, setAddedRunId] = useState<string | null>(null);
+  const matRef = useRef<HTMLElement>(null);
 
   if (!view) return <PlannerSkeleton />;
   const selected = view.runs.find((runView) => runView.run.id === selectedRunId) ?? view.runs[0] ?? null;
@@ -30,6 +32,11 @@ export function MatchPlanner() {
       return added;
     });
     document.getElementById(`run-${id}`)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+
+  function showPath(runId: string) {
+    setSelectedRunId(runId);
+    matRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }
 
   function reset() {
@@ -74,7 +81,7 @@ export function MatchPlanner() {
                       selected={step === selected}
                       startEditing={step.run.id === addedRunId}
                       onSelect={() => setSelectedRunId(step.run.id)}
-                      onShowPath={() => setSelectedRunId(step.run.id)}
+                      onShowPath={() => showPath(step.run.id)}
                       dispatch={dispatch}
                     />
                   </li>
@@ -96,6 +103,8 @@ export function MatchPlanner() {
             Start over with the sample
           </button>
         </section>
+
+        <MatMap ref={matRef} run={selected} runs={view.runs} dispatch={dispatch} />
       </div>
     </div>
   );
@@ -111,6 +120,7 @@ function PlannerSkeleton() {
           <div className="h-14 animate-pulse rounded-2xl bg-muted" />
           <div className="h-64 animate-pulse rounded-2xl bg-muted" />
         </div>
+        <div className="aspect-[1064/530] animate-pulse rounded-2xl bg-muted" />
       </div>
     </div>
   );
