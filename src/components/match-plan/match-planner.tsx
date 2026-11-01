@@ -4,7 +4,9 @@ import { Plus, RotateCcw } from "lucide-react";
 import { useRef, useState } from "react";
 import { flushSync } from "react-dom";
 
+import { RealtimeRoot } from "@/components/realtime-root";
 import { Button } from "@/components/ui/button";
+import type { LivePlan } from "@/lib/match-plan/server";
 
 import { MatMap } from "./mat-map";
 import { MatchBar } from "./match-bar";
@@ -12,15 +14,21 @@ import { RunCard } from "./run-card";
 import { ToolChangeRow } from "./tool-change-row";
 import { useMatchPlan } from "./use-match-plan";
 
-const COLUMNS = "grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]";
+/** A re-render for the same query keeps the subscription. A deploy that changed the query remounts. */
+export function MatchPlanner({ live }: { live: LivePlan }) {
+  return (
+    <RealtimeRoot key={live.sealedQuery.queryFingerprint} url={live.realtimeUrl}>
+      <Planner live={live} />
+    </RealtimeRoot>
+  );
+}
 
-export function MatchPlanner() {
-  const [view, dispatch] = useMatchPlan();
+function Planner({ live }: { live: LivePlan }) {
+  const { view, dispatch, status, dismissNotice } = useMatchPlan(live);
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null);
   const [addedRunId, setAddedRunId] = useState<string | null>(null);
   const matRef = useRef<HTMLElement>(null);
 
-  if (!view) return <PlannerSkeleton />;
   const selected = view.runs.find((runView) => runView.run.id === selectedRunId) ?? view.runs[0] ?? null;
 
   function addRun() {
@@ -39,15 +47,17 @@ export function MatchPlanner() {
   }
 
   function reset() {
-    if (!window.confirm("Start over with the sample plan? This replaces your runs and paths.")) return;
+    if (!window.confirm("Replace the team's plan with the sample? Everyone sees it right away. This can't be undone.")) {
+      return;
+    }
     dispatch({ type: "reset" });
     setSelectedRunId(null);
   }
 
   return (
     <div className="flex flex-col gap-4">
-      <MatchBar totals={view.totals} />
-      <div className={COLUMNS}>
+      <MatchBar totals={view.totals} status={status} onDismissAlert={dismissNotice} />
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
         <section aria-labelledby="runs-heading" className="flex flex-col gap-3">
           <div className="flex items-center justify-between gap-3">
             <h2 id="runs-heading" className="text-2xl font-semibold">
@@ -93,33 +103,19 @@ export function MatchPlanner() {
             </ol>
           )}
 
-          <button
-            type="button"
-            onClick={reset}
-            className="inline-flex min-h-11 items-center gap-1.5 self-start rounded-xl px-3 text-base text-muted-foreground hover:bg-muted hover:text-foreground"
-          >
-            <RotateCcw className="size-4" aria-hidden />
-            Start over with the sample
-          </button>
+          {live.canReset ? (
+            <button
+              type="button"
+              onClick={reset}
+              className="inline-flex min-h-11 items-center gap-1.5 self-start rounded-xl px-3 text-base text-muted-foreground hover:bg-muted hover:text-foreground"
+            >
+              <RotateCcw className="size-4" aria-hidden />
+              Start over with the sample
+            </button>
+          ) : null}
         </section>
 
         <MatMap ref={matRef} run={selected} runs={view.runs} dispatch={dispatch} />
-      </div>
-    </div>
-  );
-}
-
-function PlannerSkeleton() {
-  return (
-    <div aria-busy="true" aria-label="Loading your plan" className="flex flex-col gap-4">
-      <div className="h-16 rounded-2xl bg-card ring-1 ring-line" />
-      <div className={COLUMNS}>
-        <div className="flex flex-col gap-3">
-          <div className="h-64 animate-pulse rounded-2xl bg-muted" />
-          <div className="h-14 animate-pulse rounded-2xl bg-muted" />
-          <div className="h-64 animate-pulse rounded-2xl bg-muted" />
-        </div>
-        <div className="aspect-[1064/530] animate-pulse rounded-2xl bg-muted" />
       </div>
     </div>
   );

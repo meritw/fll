@@ -15,11 +15,11 @@ import {
   type RunPatch,
   type Slot,
 } from "@/lib/match-plan/plan";
+import type { PlanDispatch } from "@/lib/match-plan/sync";
 import { SLOT_LABELS, type AttachmentChip, type MissionLineView, type RunView } from "@/lib/match-plan/view";
 
 import { FIELD_CLASS, HOME_CLASSES, HomePill, MoveButtons, NumberField } from "./controls";
 import { MissionPicker } from "./mission-picker";
-import type { PlanDispatch } from "./use-match-plan";
 
 const SLOT_CLASSES: Record<Slot, string> = {
   front: "bg-info-tint text-info-ink",

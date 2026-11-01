@@ -2,7 +2,21 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { HOME_ANCHORS, MISSION_PINS } from "./pins";
-import { parsePlan, reducePlan, SEED_PLAN, type MatchPlan, type PlanCommand } from "./plan";
+import {
+  applyOp,
+  coalesceKey,
+  MAX_OPS_PER_SAVE,
+  MAX_PATH_POINTS,
+  matPath,
+  parseBatch,
+  parseOps,
+  parsePlan,
+  SEED_PLAN,
+  toOp,
+  type MatchPlan,
+  type PlanCommand,
+  type PlanOp,
+} from "./plan";
 import { formatMatchClock, suggestedPath, viewPlan, type ToolChangeView } from "./view";
 
 function counter() {
@@ -12,7 +26,14 @@ function counter() {
 
 function apply(plan: MatchPlan, ...commands: PlanCommand[]): MatchPlan {
   const newId = counter();
-  return commands.reduce((current, command) => reducePlan(current, command, newId), plan);
+  return commands.reduce((current, command) => {
+    const op = toOp(current, command, newId);
+    return op ? applyOp(current, op) : current;
+  }, plan);
+}
+
+function applyAll(plan: MatchPlan, ...ops: PlanOp[]): MatchPlan {
+  return ops.reduce(applyOp, plan);
 }
 
 function runIds(plan: MatchPlan) {
@@ -96,7 +117,7 @@ describe("seed plan", () => {
   });
 });
 
-describe("reducePlan runs", () => {
+describe("plan ops on runs", () => {
   it("adds a run in the home the last run ended in, with the same tools", () => {
     const plan = apply(SEED_PLAN, { type: "addRun" });
     const added = plan.runs[3];
@@ -194,7 +215,7 @@ describe("reducePlan runs", () => {
   });
 });
 
-describe("reducePlan edits", () => {
+describe("plan ops that edit", () => {
   it("renames a slot on the run and every mission line that uses it", () => {
     const plan = apply(SEED_PLAN, {
       type: "editRun",
@@ -304,6 +325,311 @@ describe("suggestedPath", () => {
     ]);
     const plan = apply(SEED_PLAN, { type: "addMission", runId: "r3", code: 13 });
     assert.deepEqual(suggestedPath(plan.runs[2]), [HOME_ANCHORS.RED, MISSION_PINS[4], HOME_ANCHORS.RED]);
+  });
+});
+
+const SAMPLE_OPS: { readonly [K in PlanOp["type"]]: Extract<PlanOp, { type: K }> } = {
+  addRun: { type: "addRun", runId: "new-run" },
+  removeRun: { type: "removeRun", runId: "r2" },
+  moveRun: { type: "moveRun", runId: "r3", to: [{ before: "r1" }] },
+  editRun: {
+    type: "editRun",
+    runId: "r1",
+    patch: { launcher: "Ana", end: "RED", loadout: { front: "claw" }, path: [{ x: 10.04, y: 120 }] },
+  },
+  addMission: { type: "addMission", runId: "r1", missionId: "new-mission", code: 2 },
+  removeMission: { type: "removeMission", missionId: "m1" },
+  moveMission: { type: "moveMission", missionId: "m3", to: [{ before: "m1" }] },
+  editMission: { type: "editMission", missionId: "m1", patch: { points: 30, bestSec: 40, notes: "aim left" } },
+  editToolChange: { type: "editToolChange", runId: "r2", patch: { worstSec: 4, note: "swap arm" } },
+  reset: { type: "reset" },
+};
+
+function runIn(plan: MatchPlan, runId: string) {
+  const run = plan.runs.find((candidate) => candidate.id === runId);
+  assert.ok(run, `run ${runId} is in the plan`);
+  return run;
+}
+
+describe("plan ops are safe to replay", () => {
+  it("applying an op twice equals applying it once", () => {
+    const start = applyOp(SEED_PLAN, { type: "editRun", runId: "r3", patch: { launcher: "Kai" } });
+    for (const op of Object.values(SAMPLE_OPS)) {
+      const once = applyOp(start, op);
+      assert.notEqual(once, start, `${op.type} changes the plan`);
+      assert.deepEqual(applyOp(once, op), once, op.type);
+    }
+  });
+
+  it("keeps two people's edits to different fields of the same run, in either order", () => {
+    const launcher: PlanOp = { type: "editRun", runId: "r1", patch: { launcher: "Ana" } };
+    const end: PlanOp = { type: "editRun", runId: "r1", patch: { end: "RED" } };
+    const rear: PlanOp = { type: "editRun", runId: "r1", patch: { loadout: { rear: "claw" } } };
+    const merged = applyAll(SEED_PLAN, launcher, end, rear);
+    assert.deepEqual(applyAll(SEED_PLAN, rear, end, launcher), merged);
+    assert.deepEqual(
+      [merged.runs[0].launcher, merged.runs[0].end, merged.runs[0].loadout],
+      ["Ana", "RED", { front: "drone hook", rear: "claw", other: "" }],
+    );
+  });
+
+  it("replays a move pinned to the neighbor the user saw over a teammate's reorder", () => {
+    const op = toOp(SEED_PLAN, { type: "moveRun", runId: "r3", by: -1 }, counter());
+    assert.deepEqual(op, { type: "moveRun", runId: "r3", to: [{ before: "r2" }, { after: "r1" }] });
+    const teammate = applyOp(SEED_PLAN, { type: "moveRun", runId: "r1", to: [{ after: "r3" }] });
+    assert.deepEqual(runIds(teammate), ["r2", "r3", "r1"]);
+    assert.ok(op);
+    assert.deepEqual(runIds(applyOp(teammate, op)), ["r3", "r2", "r1"]);
+  });
+
+  it("lands a move next to its other neighbor when a teammate deleted the one it jumped over", () => {
+    const op = toOp(SEED_PLAN, { type: "moveRun", runId: "r3", by: -1 }, counter());
+    const teammate = applyAll(
+      SEED_PLAN,
+      { type: "removeRun", runId: "r2" },
+      { type: "moveRun", runId: "r3", to: [{ before: "r1" }] },
+    );
+    assert.deepEqual(runIds(teammate), ["r3", "r1"]);
+    assert.ok(op);
+    assert.deepEqual(runIds(applyOp(teammate, op)), ["r1", "r3"]);
+  });
+
+  it("drops a move when a teammate deleted both of its neighbors", () => {
+    const op = toOp(SEED_PLAN, { type: "moveRun", runId: "r3", by: -1 }, counter());
+    const teammate = applyAll(SEED_PLAN, { type: "removeRun", runId: "r1" }, { type: "removeRun", runId: "r2" });
+    assert.ok(op);
+    assert.equal(applyOp(teammate, op), teammate);
+  });
+
+  it("replays an added run over a teammate's added run, inheriting from whichever run is last", () => {
+    const mine: PlanOp = { type: "addRun", runId: "mine" };
+    const teammate = applyAll(SEED_PLAN, { type: "addRun", runId: "theirs" }, {
+      type: "editRun",
+      runId: "theirs",
+      patch: { end: "BLUE", loadout: { front: "net" } },
+    });
+    const plan = applyOp(teammate, mine);
+    assert.deepEqual(runIds(plan), ["r1", "r2", "r3", "theirs", "mine"]);
+    assert.deepEqual([runIn(plan, "mine").start, runIn(plan, "mine").loadout.front], ["BLUE", "net"]);
+  });
+
+  it("replays a mission edit after a teammate moved that mission's neighbor", () => {
+    const teammate = applyOp(SEED_PLAN, { type: "moveMission", missionId: "m3", to: [{ before: "m1" }] });
+    const plan = applyOp(teammate, { type: "editMission", missionId: "m1", patch: { notes: "aim left" } });
+    assert.deepEqual(
+      runIn(plan, "r1").missions.map((mission) => [mission.id, mission.notes]),
+      [
+        ["m3", ""],
+        ["m1", "aim left"],
+      ],
+    );
+  });
+});
+
+describe("plan ops that change nothing return the same plan", () => {
+  const removed = applyOp(SEED_PLAN, { type: "removeRun", runId: "r2" });
+
+  it("for ops aimed at a run or mission someone deleted", () => {
+    const ops: PlanOp[] = [
+      { type: "removeRun", runId: "r2" },
+      { type: "moveRun", runId: "r2", to: [{ before: "r1" }] },
+      { type: "moveRun", runId: "r3", to: [{ before: "r2" }] },
+      { type: "editRun", runId: "r2", patch: { launcher: "Kai" } },
+      { type: "editToolChange", runId: "r2", patch: { note: "x" } },
+      { type: "addMission", runId: "r2", missionId: "x", code: 2 },
+      { type: "removeMission", missionId: "m7" },
+      { type: "moveMission", missionId: "m7", to: [{ after: "m12" }] },
+      { type: "moveMission", missionId: "m1", to: [{ before: "m7" }] },
+      { type: "editMission", missionId: "m7", patch: { points: 5 } },
+    ];
+    for (const op of ops) {
+      assert.equal(applyOp(removed, op), removed, `${op.type} ${JSON.stringify(op)}`);
+    }
+  });
+
+  it("for patches equal to the current values", () => {
+    const r1 = SEED_PLAN.runs[0];
+    const ops: PlanOp[] = [
+      { type: "editRun", runId: "r1", patch: {} },
+      { type: "editRun", runId: "r1", patch: { launcher: "Alex", start: "RED", end: "BLUE" } },
+      { type: "editRun", runId: "r1", patch: { loadout: { front: "drone hook", other: "" } } },
+      { type: "editRun", runId: "r1", patch: { path: r1.path.map((point) => ({ ...point })) } },
+      { type: "editMission", missionId: "m1", patch: { uses: "front", points: 20, notes: "" } },
+      { type: "editMission", missionId: "m1", patch: { bestSec: 15, worstSec: 25 } },
+      { type: "editToolChange", runId: "r2", patch: { bestSec: 10, worstSec: 20, note: "" } },
+    ];
+    for (const op of ops) {
+      assert.equal(applyOp(SEED_PLAN, op), SEED_PLAN, JSON.stringify(op));
+    }
+  });
+
+  it("for moves to the place an item already holds", () => {
+    const ops: PlanOp[] = [
+      { type: "moveRun", runId: "r2", to: [{ after: "r1" }] },
+      { type: "moveRun", runId: "r2", to: [{ before: "r3" }, { after: "r3" }] },
+      { type: "moveRun", runId: "r2", to: [{ before: "r2" }] },
+      { type: "moveMission", missionId: "m3", to: [{ after: "m1" }] },
+      { type: "moveMission", missionId: "m1", to: [{ before: "m3" }] },
+    ];
+    for (const op of ops) {
+      assert.equal(applyOp(SEED_PLAN, op), SEED_PLAN, JSON.stringify(op));
+    }
+  });
+
+  it("for adds whose id is already used by any run or mission", () => {
+    assert.equal(applyOp(SEED_PLAN, { type: "addRun", runId: "m3" }), SEED_PLAN);
+    assert.equal(applyOp(SEED_PLAN, { type: "addMission", runId: "r1", missionId: "r2", code: 2 }), SEED_PLAN);
+  });
+});
+
+describe("plan op caps", () => {
+  it("clips text to the shared caps", () => {
+    const plan = applyAll(
+      SEED_PLAN,
+      { type: "editRun", runId: "r1", patch: { launcher: "a".repeat(100), loadout: { rear: "b".repeat(100) } } },
+      { type: "editMission", missionId: "m1", patch: { notes: "c".repeat(900) } },
+      { type: "editToolChange", runId: "r2", patch: { note: "d".repeat(300) } },
+    );
+    assert.equal(plan.runs[0].launcher.length, 40);
+    assert.equal(plan.runs[0].loadout.rear.length, 40);
+    assert.equal(plan.runs[0].missions[0].notes.length, 500);
+    assert.equal(plan.runs[1].toolChangeBefore.note.length, 200);
+  });
+
+  it("never cuts an emoji in half when clipping", () => {
+    const plan = applyOp(SEED_PLAN, { type: "editRun", runId: "r1", patch: { launcher: `${"a".repeat(39)}🤖🤖` } });
+    assert.equal(plan.runs[0].launcher, "a".repeat(39));
+    assert.ok(plan.runs[0].launcher.isWellFormed());
+  });
+
+  it("stores a path clamped to the mat and at most MAX_PATH_POINTS long, the same way matPath does", () => {
+    const drawn = Array.from({ length: MAX_PATH_POINTS + 5 }, (_, i) => ({ x: i % 150, y: -1 }));
+    const plan = applyOp(SEED_PLAN, { type: "editRun", runId: "r1", patch: { path: drawn } });
+    assert.equal(plan.runs[0].path.length, MAX_PATH_POINTS);
+    assert.deepEqual(plan.runs[0].path, matPath(drawn));
+    assert.deepEqual(plan.runs[0].path[120], { x: 100, y: 0 });
+  });
+});
+
+describe("coalesceKey", () => {
+  it("matches edits to the same fields of the same target, whatever the values", () => {
+    const key = (op: PlanOp) => coalesceKey(op);
+    assert.equal(
+      key({ type: "editRun", runId: "r1", patch: { launcher: "A" } }),
+      key({ type: "editRun", runId: "r1", patch: { launcher: "Ana" } }),
+    );
+    assert.equal(
+      key({ type: "editMission", missionId: "m1", patch: { notes: "a", points: 1 } }),
+      key({ type: "editMission", missionId: "m1", patch: { points: 2, notes: "b" } }),
+    );
+    assert.equal(
+      key({ type: "editToolChange", runId: "r2", patch: { note: "a" } }),
+      key({ type: "editToolChange", runId: "r2", patch: { note: "b" } }),
+    );
+  });
+
+  it("tells apart different targets, fields, and loadout slots", () => {
+    const keys = [
+      coalesceKey({ type: "editRun", runId: "r1", patch: { launcher: "A" } }),
+      coalesceKey({ type: "editRun", runId: "r2", patch: { launcher: "A" } }),
+      coalesceKey({ type: "editRun", runId: "r1", patch: { loadout: { front: "a" } } }),
+      coalesceKey({ type: "editRun", runId: "r1", patch: { loadout: { rear: "a" } } }),
+      coalesceKey({ type: "editRun", runId: "r1", patch: { launcher: "A", loadout: { rear: "a" } } }),
+      coalesceKey({ type: "editMission", missionId: "m1", patch: { bestSec: 1 } }),
+      coalesceKey({ type: "editMission", missionId: "m1", patch: { worstSec: 1 } }),
+      coalesceKey({ type: "editToolChange", runId: "r1", patch: { bestSec: 1 } }),
+    ];
+    assert.equal(new Set(keys).size, keys.length);
+  });
+
+  it("never coalesces adds, removes, moves, or a reset", () => {
+    for (const op of Object.values(SAMPLE_OPS)) {
+      if (op.type.startsWith("edit")) continue;
+      assert.equal(coalesceKey(op), null, op.type);
+    }
+  });
+});
+
+describe("parseOps", () => {
+  it("accepts every op type after a JSON round trip", () => {
+    const ops = Object.values(SAMPLE_OPS);
+    assert.deepEqual(parseOps(JSON.parse(JSON.stringify(ops))), ops);
+    assert.deepEqual(parseOps([]), []);
+  });
+
+  it("rejects the whole batch when any op is malformed", () => {
+    const good: PlanOp = { type: "removeRun", runId: "r1" };
+    const rejects: [string, unknown][] = [
+      ["not an array", { type: "reset" }],
+      ["unknown type", [good, { type: "explode" }]],
+      ["inherited type name", [{ type: "toString", runId: "r1" }]],
+      ["missing runId", [{ type: "removeRun" }]],
+      ["empty id", [{ type: "removeRun", runId: "" }]],
+      ["id longer than 64", [{ type: "removeRun", runId: "x".repeat(65) }]],
+      ["place not a list", [{ type: "moveRun", runId: "r1", to: { before: "r2" } }]],
+      ["place with no anchors", [{ type: "moveRun", runId: "r1", to: [] }]],
+      [
+        "place with three anchors",
+        [{ type: "moveRun", runId: "r1", to: [{ before: "r2" }, { after: "r2" }, { after: "r3" }] }],
+      ],
+      ["anchor with both ends", [{ type: "moveRun", runId: "r1", to: [{ before: "r2", after: "r3" }] }]],
+      ["anchor with neither end", [{ type: "moveRun", runId: "r1", to: [{ after: "r2" }, {}] }]],
+      ["unknown home", [{ type: "editRun", runId: "r1", patch: { start: "GREEN" } }]],
+      ["launcher not text", [{ type: "editRun", runId: "r1", patch: { launcher: 7 } }]],
+      ["lone surrogate in text", [{ type: "editMission", missionId: "m1", patch: { notes: "a\uD800" } }]],
+      ["lone surrogate in a slot", [{ type: "editRun", runId: "r1", patch: { loadout: { rear: "\uDC00" } } }]],
+      ["unknown loadout slot", [{ type: "editRun", runId: "r1", patch: { loadout: { side: "claw" } } }]],
+      ["path point without y", [{ type: "editRun", runId: "r1", patch: { path: [{ x: 1 }] } }]],
+      ["points not a number", [{ type: "editMission", missionId: "m1", patch: { points: "5" } }]],
+      ["unknown attachment", [{ type: "editMission", missionId: "m1", patch: { uses: "top" } }]],
+      ["patch not a record", [{ type: "editToolChange", runId: "r1", patch: "note" }]],
+      ["unknown mission code", [{ type: "addMission", runId: "r1", missionId: "x", code: 99 }]],
+      ["too many ops", Array.from({ length: MAX_OPS_PER_SAVE + 1 }, () => good)],
+    ];
+    for (const [label, raw] of rejects) {
+      assert.equal(parseOps(raw), null, label);
+    }
+    assert.equal(parseOps(Array.from({ length: MAX_OPS_PER_SAVE }, () => good))?.length, MAX_OPS_PER_SAVE);
+  });
+
+  it("drops keys it doesn't know", () => {
+    assert.deepEqual(
+      parseOps([
+        { type: "editRun", runId: "r1", patch: { launcher: "A", evil: 1 }, extra: true },
+        { type: "moveMission", missionId: "m1", to: [{ after: "m3", evil: 1 }] },
+        { type: "reset", runId: "r1" },
+      ]),
+      [
+        { type: "editRun", runId: "r1", patch: { launcher: "A" } },
+        { type: "moveMission", missionId: "m1", to: [{ after: "m3" }] },
+        { type: "reset" },
+      ],
+    );
+  });
+});
+
+describe("parseBatch", () => {
+  const ops = [SAMPLE_OPS.editRun, SAMPLE_OPS.reset];
+
+  it("accepts a batch after a JSON round trip", () => {
+    const batch = { id: "batch-1", generation: 3, ops };
+    assert.deepEqual(parseBatch(JSON.parse(JSON.stringify(batch))), batch);
+  });
+
+  it("rejects a batch without an id, a whole generation, or any ops", () => {
+    const rejects: [string, unknown][] = [
+      ["not a record", [ops]],
+      ["missing id", { generation: 0, ops }],
+      ["id longer than 64", { id: "x".repeat(65), generation: 0, ops }],
+      ["generation as text", { id: "b", generation: "0", ops }],
+      ["negative generation", { id: "b", generation: -1, ops }],
+      ["fractional generation", { id: "b", generation: 0.5, ops }],
+      ["no ops", { id: "b", generation: 0, ops: [] }],
+      ["malformed op", { id: "b", generation: 0, ops: [...ops, { type: "explode" }] }],
+    ];
+    for (const [label, raw] of rejects) {
+      assert.equal(parseBatch(raw), null, label);
+    }
   });
 });
 

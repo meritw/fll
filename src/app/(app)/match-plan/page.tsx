@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { MatchPlanner } from "@/components/match-plan/match-planner";
+import { loadLivePlan } from "@/lib/match-plan/server";
 import { requireUser } from "@/lib/session";
 
 export const metadata: Metadata = {
@@ -8,7 +9,8 @@ export const metadata: Metadata = {
 };
 
 export default async function MatchPlanPage() {
-  await requireUser();
+  const { user } = await requireUser();
+  const live = await loadLivePlan(user);
 
   return (
     <div className="flex flex-col gap-4">
@@ -17,7 +19,7 @@ export default async function MatchPlanPage() {
         <h1 className="text-3xl font-semibold">Match plan</h1>
         <p className="text-lg text-muted-foreground">Plan your runs, tools, and points. Fit it all in 2:30.</p>
       </div>
-      <MatchPlanner />
+      <MatchPlanner live={live} />
     </div>
   );
 }

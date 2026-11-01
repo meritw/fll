@@ -14,6 +14,8 @@ import {
   setDisplayName,
 } from "@/lib/accounts";
 import { findDeliverableEmailUser } from "@/lib/coaches";
+import { parseBatch, type PlanBatch } from "@/lib/match-plan/plan";
+import { planAccess, saveSharedPlanBatch, type SaveResult } from "@/lib/match-plan/server";
 import { planDayNoteWrites } from "@/lib/day-note-plan";
 import { addSeasonEvent, createJournalEntry, deleteSeasonEvent } from "@/lib/journal";
 import { attachHomeMedia, attachMeetingMedia, HOME_MEDIA_SCOPE, updateMediaCaption } from "@/lib/media";
@@ -830,6 +832,15 @@ export async function submitCoachFixedZip(input: {
   revalidatePath("/home");
   revalidatePath("/conflicts");
   return result;
+}
+
+/** Answers UNAUTHENTICATED instead of redirecting, so the planner can reload into sign-in itself. */
+export async function savePlanBatch(pageUserId: string, batch: PlanBatch): Promise<SaveResult> {
+  const access = await planAccess(pageUserId);
+  if (access.kind !== "editor") return { kind: "rejected", reason: "UNAUTHENTICATED" };
+  const parsed = parseBatch(batch);
+  if (!parsed) return { kind: "rejected", reason: "INVALID" };
+  return saveSharedPlanBatch(parsed, access.editor);
 }
 
 export type ActionState = {
