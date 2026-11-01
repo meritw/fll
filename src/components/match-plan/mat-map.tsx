@@ -175,6 +175,7 @@ export function MatMap({
           alt="Official BioGlow mat. Red home on the left, blue home on the right."
           fill
           sizes="(min-width: 1024px) 600px, 100vw"
+          loading="eager"
           draggable={false}
           className="pointer-events-none"
         />
