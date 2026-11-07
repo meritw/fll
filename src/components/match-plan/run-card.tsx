@@ -75,6 +75,15 @@ export function RunCard({ view, runs, selected, startEditing, onSelect, onShowPa
             <span className="sr-only">to</span>
             <HomePill home={run.end} />
           </span>
+          <button
+            type="button"
+            aria-label={`Run time ${run.time.bestSec} to ${run.time.worstSec} seconds. Edit times`}
+            onClick={() => setEditing(true)}
+            className="inline-flex min-h-11 items-center gap-1 rounded-lg px-2 text-base text-muted-foreground tabular-nums hover:bg-muted"
+          >
+            <Timer className="size-4" aria-hidden />
+            {run.time.bestSec}–{run.time.worstSec}s
+          </button>
           <span className="ml-auto flex gap-2">
             <Button variant="outline" aria-pressed={selected} className={ACTION_BUTTON} onClick={onShowPath}>
               <Route className="size-5" aria-hidden />
@@ -210,10 +219,6 @@ function MissionLine({
                 No tool
               </span>
             )}
-            <span className="inline-flex items-center gap-1 text-sm text-muted-foreground tabular-nums">
-              <Timer className="size-3.5" aria-hidden />
-              {mission.time.bestSec}–{mission.time.worstSec}s
-            </span>
           </span>
         </span>
         <PointsBadge points={mission.points} />
@@ -298,17 +303,6 @@ function MissionEditor({
         </div>
       </fieldset>
 
-      <div className="grid grid-cols-2 gap-3">
-        <label className="flex flex-col gap-1.5 text-base font-medium">
-          Best seconds
-          <NumberField value={mission.time.bestSec} onValue={(bestSec) => edit({ bestSec })} />
-        </label>
-        <label className="flex flex-col gap-1.5 text-base font-medium">
-          Worst seconds
-          <NumberField value={mission.time.worstSec} onValue={(worstSec) => edit({ worstSec })} />
-        </label>
-      </div>
-
       <label className="flex flex-col gap-1.5 text-base font-medium">
         Notes
         <Textarea
@@ -375,6 +369,17 @@ function RunEditor({
       <div className="grid grid-cols-2 gap-3">
         <HomeChoice label="Starts in" value={run.start} onChange={(start) => edit({ start })} />
         <HomeChoice label="Ends in" value={run.end} onChange={(end) => edit({ end })} />
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <label className="flex flex-col gap-1.5 text-base font-medium">
+          Best seconds
+          <NumberField value={run.time.bestSec} onValue={(bestSec) => edit({ bestSec })} />
+        </label>
+        <label className="flex flex-col gap-1.5 text-base font-medium">
+          Worst seconds
+          <NumberField value={run.time.worstSec} onValue={(worstSec) => edit({ worstSec })} />
+        </label>
       </div>
 
       <fieldset className="flex flex-col gap-2">

@@ -101,10 +101,8 @@ export function viewPlan(plan: MatchPlan): PlanView {
     steps.push(view);
     runs.push(view);
     points += view.points;
-    for (const mission of run.missions) {
-      bestSec += mission.time.bestSec;
-      worstSec += mission.time.worstSec;
-    }
+    bestSec += run.time.bestSec;
+    worstSec += run.time.worstSec;
   });
 
   return { steps, runs, totals: { points, best: budget(bestSec), worst: budget(worstSec) } };
