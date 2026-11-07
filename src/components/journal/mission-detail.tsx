@@ -44,7 +44,7 @@ export function MissionDetail({
   card?: { src: string; width: number; height: number } | null;
   notes: { id: string; body: string; byline: string }[];
   viewer: { id: string; role: "student" | "coach" | "parent" | "other" };
-  students: (Person & { load: number })[];
+  students: Person[];
 }) {
   const router = useRouter();
   const [, startTransition] = useTransition();
@@ -138,7 +138,6 @@ export function MissionDetail({
   const me = students.find((person) => person.id === viewer.id) ?? {
     id: viewer.id,
     name: "You",
-    load: 0,
   };
 
   return (
@@ -284,14 +283,11 @@ export function MissionDetail({
                     onClick={() => changeTeam(person, true, false)}
                     className="min-h-11 rounded-full border border-dashed border-info/50 bg-card px-4 text-base font-medium text-info-ink hover:bg-info-tint"
                   >
-                    + {person.name} <span className="text-sm text-info">({person.load})</span>
+                    + {person.name}
                   </button>
                 ))}
               </div>
             )}
-            <span className="text-sm text-info-ink/80">
-              The number shows how many missions each team member already has.
-            </span>
           </div>
         ) : null}
         {teamSave ? <SaveStatus state={teamSave} /> : null}

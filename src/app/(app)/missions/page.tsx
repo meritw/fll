@@ -62,12 +62,6 @@ export default async function MissionsPage({ searchParams }: PageProps) {
     board[0];
 
   const notes = selected ? await listMissionNotes(selected.id) : [];
-  const loads = new Map<string, number>();
-  for (const item of board) {
-    for (const person of item.assignees) {
-      loads.set(person.id, (loads.get(person.id) ?? 0) + 1);
-    }
-  }
 
   const filterLabels: Record<Filter, string> = {
     all: `All ${board.length}`,
@@ -215,7 +209,6 @@ export default async function MissionsPage({ searchParams }: PageProps) {
             students={students.map((person) => ({
               id: person.id,
               name: person.name,
-              load: loads.get(person.id) ?? 0,
             }))}
           />
         ) : null}
