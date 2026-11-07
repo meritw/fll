@@ -127,26 +127,27 @@ describe("plan ops on runs", () => {
       start: "RED",
       end: "RED",
       loadout: SEED_PLAN.runs[2].loadout,
+      time: { bestSec: 20, worstSec: 30 },
       missions: [],
       path: [],
       toolChangeBefore: { time: { bestSec: 15, worstSec: 25 }, note: "" },
     });
     const last = toolChanges(plan)[2];
     assert.deepEqual([last.runId, last.swaps, last.move], ["new-1", [], null]);
-    assert.deepEqual(totals(plan), { points: 125, bestSec: 130, worstSec: 215 });
+    assert.deepEqual(totals(plan), { points: 125, bestSec: 150, worstSec: 245 });
   });
 
   it("adds the first run to an empty plan from RED with no tools and no tool change", () => {
     const plan = apply({ runs: [] }, { type: "addRun" });
     assert.deepEqual(
-      [plan.runs[0].start, plan.runs[0].end, plan.runs[0].loadout],
-      ["RED", "RED", { front: "", rear: "", other: "" }],
+      [plan.runs[0].start, plan.runs[0].end, plan.runs[0].loadout, plan.runs[0].time],
+      ["RED", "RED", { front: "", rear: "", other: "" }, { bestSec: 20, worstSec: 30 }],
     );
     assert.deepEqual(
       viewPlan(plan).steps.map((step) => step.kind),
       ["run"],
     );
-    assert.deepEqual(totals(plan), { points: 0, bestSec: 0, worstSec: 0 });
+    assert.deepEqual(totals(plan), { points: 0, bestSec: 20, worstSec: 30 });
   });
 
   it("removes a run with the tool change before it", () => {
@@ -253,10 +254,10 @@ describe("plan ops that edit", () => {
     assert.deepEqual([line.codeLabel, line.name, line.attachment, line.mission.points], ["M13", "Keystone Species", null, 0]);
   });
 
-  it("removes and moves missions within their run", () => {
+  it("removes and moves missions within their run without changing run time", () => {
     const removed = apply(SEED_PLAN, { type: "removeMission", missionId: "m1" });
     assert.deepEqual(removed.runs[0].missions.map((mission) => mission.id), ["m3"]);
-    assert.deepEqual(totals(removed), { points: 105, bestSec: 100, worstSec: 165 });
+    assert.deepEqual(totals(removed), { points: 105, bestSec: 115, worstSec: 190 });
     const moved = apply(SEED_PLAN, { type: "moveMission", missionId: "m3", by: -1 });
     assert.deepEqual(moved.runs[0].missions.map((mission) => mission.id), ["m3", "m1"]);
   });
@@ -282,14 +283,14 @@ describe("plan ops that edit", () => {
     assert.equal(missionLine(none, "m3").attachment, null);
   });
 
-  it("edits a time range so the edited end wins and best never passes worst", () => {
+  it("edits a run time range so the edited end wins and best never passes worst", () => {
     const time = (patch: { bestSec?: number; worstSec?: number }) =>
-      apply(SEED_PLAN, { type: "editMission", missionId: "m1", patch }).runs[0].missions[0].time;
-    assert.deepEqual(time({ bestSec: 20 }), { bestSec: 20, worstSec: 25 });
-    assert.deepEqual(time({ bestSec: 50 }), { bestSec: 50, worstSec: 50 });
+      apply(SEED_PLAN, { type: "editRun", runId: "r1", patch }).runs[0].time;
+    assert.deepEqual(time({ bestSec: 40 }), { bestSec: 40, worstSec: 55 });
+    assert.deepEqual(time({ bestSec: 80 }), { bestSec: 80, worstSec: 80 });
     assert.deepEqual(time({ worstSec: 10 }), { bestSec: 10, worstSec: 10 });
     assert.deepEqual(time({ bestSec: 45, worstSec: 12 }), { bestSec: 12, worstSec: 45 });
-    assert.deepEqual(time({ worstSec: 1500 }), { bestSec: 15, worstSec: 999 });
+    assert.deepEqual(time({ worstSec: 1500 }), { bestSec: 35, worstSec: 999 });
   });
 
   it("edits the tool change before a run with the same time-range rule", () => {
@@ -302,15 +303,10 @@ describe("plan ops that edit", () => {
     assert.deepEqual(totals(plan), { points: 125, bestSec: 113, worstSec: 178 });
   });
 
-  it("turns the worst total over the match when a mission's worst time rises", () => {
-    const plan = apply(
-      { runs: [] },
-      { type: "addRun" },
-      { type: "addMission", runId: "new-1", code: 1 },
-      { type: "editMission", missionId: "new-2", patch: { worstSec: 150 } },
-    );
+  it("turns the worst total over the match when a run's worst time rises", () => {
+    const plan = apply({ runs: [] }, { type: "addRun" }, { type: "editRun", runId: "new-1", patch: { worstSec: 150 } });
     assert.equal(viewPlan(plan).totals.worst.over, false);
-    const over = apply(plan, { type: "editMission", missionId: "new-2", patch: { worstSec: 151 } });
+    const over = apply(plan, { type: "editRun", runId: "new-1", patch: { worstSec: 151 } });
     assert.deepEqual(viewPlan(over).totals.worst, { sec: 151, leftSec: -1, over: true });
   });
 });
@@ -340,7 +336,7 @@ const SAMPLE_OPS: { readonly [K in PlanOp["type"]]: Extract<PlanOp, { type: K }>
   addMission: { type: "addMission", runId: "r1", missionId: "new-mission", code: 2 },
   removeMission: { type: "removeMission", missionId: "m1" },
   moveMission: { type: "moveMission", missionId: "m3", to: [{ before: "m1" }] },
-  editMission: { type: "editMission", missionId: "m1", patch: { points: 30, bestSec: 40, notes: "aim left" } },
+  editMission: { type: "editMission", missionId: "m1", patch: { points: 30, notes: "aim left" } },
   editToolChange: { type: "editToolChange", runId: "r2", patch: { worstSec: 4, note: "swap arm" } },
   reset: { type: "reset" },
 };
@@ -455,7 +451,7 @@ describe("plan ops that change nothing return the same plan", () => {
       { type: "editRun", runId: "r1", patch: { loadout: { front: "drone hook", other: "" } } },
       { type: "editRun", runId: "r1", patch: { path: r1.path.map((point) => ({ ...point })) } },
       { type: "editMission", missionId: "m1", patch: { uses: "front", points: 20, notes: "" } },
-      { type: "editMission", missionId: "m1", patch: { bestSec: 15, worstSec: 25 } },
+      { type: "editRun", runId: "r1", patch: { bestSec: 35, worstSec: 55 } },
       { type: "editToolChange", runId: "r2", patch: { bestSec: 10, worstSec: 20, note: "" } },
     ];
     for (const op of ops) {
@@ -535,8 +531,8 @@ describe("coalesceKey", () => {
       coalesceKey({ type: "editRun", runId: "r1", patch: { loadout: { front: "a" } } }),
       coalesceKey({ type: "editRun", runId: "r1", patch: { loadout: { rear: "a" } } }),
       coalesceKey({ type: "editRun", runId: "r1", patch: { launcher: "A", loadout: { rear: "a" } } }),
-      coalesceKey({ type: "editMission", missionId: "m1", patch: { bestSec: 1 } }),
-      coalesceKey({ type: "editMission", missionId: "m1", patch: { worstSec: 1 } }),
+      coalesceKey({ type: "editRun", runId: "r1", patch: { bestSec: 1 } }),
+      coalesceKey({ type: "editRun", runId: "r1", patch: { worstSec: 1 } }),
       coalesceKey({ type: "editToolChange", runId: "r1", patch: { bestSec: 1 } }),
     ];
     assert.equal(new Set(keys).size, keys.length);
@@ -633,13 +629,14 @@ describe("parseBatch", () => {
   });
 });
 
-const STORED_MISSION = { id: "m", code: 1, uses: "front", points: 10, time: { bestSec: 5, worstSec: 9 }, notes: "" };
+const STORED_MISSION = { id: "m", code: 1, uses: "front", points: 10, notes: "" };
 const STORED_RUN = {
   id: "r",
   launcher: "Kai",
   start: "RED",
   end: "BLUE",
   loadout: { front: "hook", rear: "", other: "" },
+  time: { bestSec: 5, worstSec: 9 },
   missions: [STORED_MISSION],
   path: [{ x: 10, y: 20 }],
   toolChangeBefore: { time: { bestSec: 5, worstSec: 9 }, note: "" },
@@ -680,7 +677,7 @@ describe("parsePlan", () => {
       ["unknown mission code", storedMission({ code: 16 })],
       ["unknown slot", storedMission({ uses: "top" })],
       ["points not a number", storedMission({ points: "10" })],
-      ["time not a range", storedMission({ time: { bestSec: 5 } })],
+      ["run time not a range", storedRun({ time: { bestSec: 5 } })],
       ["repeated id", storedMission({ id: "r" })],
     ];
     for (const [label, json] of rejects) {
@@ -693,23 +690,72 @@ describe("parsePlan", () => {
       storedRun({
         loadout: { front: "hook" },
         path: [{ x: 150, y: -2 }],
+        time: { bestSec: 40, worstSec: 10 },
         toolChangeBefore: { time: { bestSec: 40, worstSec: 10 } },
-        missions: [{ id: "m", code: 1, uses: "none", points: 12.4, time: { bestSec: -3, worstSec: 1200 } }],
+        missions: [{ id: "m", code: 1, uses: "none", points: 12.4, notes: "" }],
       }),
     );
     assert.ok(plan);
     const [run] = plan.runs;
     assert.deepEqual(run.loadout, { front: "hook", rear: "", other: "" });
     assert.deepEqual(run.path, [{ x: 100, y: 0 }]);
+    assert.deepEqual(run.time, { bestSec: 10, worstSec: 40 });
     assert.deepEqual(run.toolChangeBefore, { time: { bestSec: 10, worstSec: 40 }, note: "" });
     assert.deepEqual(run.missions[0], {
       id: "m",
       code: 1,
       uses: "none",
       points: 12,
-      time: { bestSec: 0, worstSec: 999 },
       notes: "",
     });
     assert.deepEqual(parsePlan(storedRun({ loadout: undefined }))?.runs[0].loadout, { front: "", rear: "", other: "" });
+  });
+
+  it("folds legacy mission times into the run when run.time is missing", () => {
+    const plan = parsePlan({
+      runs: [
+        {
+          id: "legacy",
+          launcher: "Kai",
+          start: "RED",
+          end: "BLUE",
+          loadout: { front: "hook", rear: "", other: "" },
+          path: [],
+          toolChangeBefore: { time: { bestSec: 5, worstSec: 9 }, note: "" },
+          missions: [
+            { id: "m1", code: 1, uses: "front", points: 10, time: { bestSec: 15, worstSec: 25 }, notes: "" },
+            { id: "m2", code: 2, uses: "none", points: 5, time: { bestSec: 10, worstSec: 20 }, notes: "" },
+          ],
+        },
+      ],
+    });
+    assert.ok(plan);
+    assert.deepEqual(plan.runs[0].time, { bestSec: 25, worstSec: 45 });
+    assert.deepEqual(
+      plan.runs[0].missions.map((mission) => mission),
+      [
+        { id: "m1", code: 1, uses: "front", points: 10, notes: "" },
+        { id: "m2", code: 2, uses: "none", points: 5, notes: "" },
+      ],
+    );
+  });
+
+  it("defaults run time when neither run nor missions carry times", () => {
+    const plan = parsePlan({
+      runs: [
+        {
+          id: "bare",
+          launcher: "",
+          start: "RED",
+          end: "RED",
+          loadout: {},
+          path: [],
+          toolChangeBefore: { time: { bestSec: 15, worstSec: 25 }, note: "" },
+          missions: [{ id: "m", code: 1, uses: "none", points: 0, notes: "" }],
+        },
+      ],
+    });
+    assert.ok(plan);
+    assert.deepEqual(plan.runs[0].time, { bestSec: 20, worstSec: 30 });
   });
 });

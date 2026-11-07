@@ -23,7 +23,6 @@ export type PlannedMission = Readonly<{
   code: MissionCode;
   uses: Slot | "none";
   points: number;
-  time: SecRange;
   notes: string;
 }>;
 
@@ -35,6 +34,7 @@ export type Run = Readonly<{
   start: HomeBase;
   end: HomeBase;
   loadout: Loadout;
+  time: SecRange;
   missions: readonly PlannedMission[];
   path: readonly PathPoint[];
   toolChangeBefore: ToolChange;
@@ -48,13 +48,13 @@ export type RunPatch = Partial<{
   end: HomeBase;
   loadout: Partial<Loadout>;
   path: readonly PathPoint[];
+  bestSec: number;
+  worstSec: number;
 }>;
 
 export type MissionPatch = Partial<{
   uses: Slot | "none";
   points: number;
-  bestSec: number;
-  worstSec: number;
   notes: string;
 }>;
 
@@ -97,7 +97,7 @@ const MAX_ID_LENGTH = 64;
 const MAX_NUMBER = 999;
 const EMPTY_LOADOUT: Loadout = { front: "", rear: "", other: "" };
 const NEW_TOOL_CHANGE_TIME: SecRange = { bestSec: 15, worstSec: 25 };
-const NEW_MISSION_TIME: SecRange = { bestSec: 20, worstSec: 30 };
+const NEW_RUN_TIME: SecRange = { bestSec: 20, worstSec: 30 };
 
 export function toOp(plan: MatchPlan, command: PlanCommand, newId: () => string): PlanOp | null {
   switch (command.type) {
@@ -137,6 +137,7 @@ export function applyOp(plan: MatchPlan, op: PlanOp): MatchPlan {
         start: home,
         end: home,
         loadout: last ? last.loadout : EMPTY_LOADOUT,
+        time: NEW_RUN_TIME,
         missions: [],
         path: [],
         toolChangeBefore: { time: NEW_TOOL_CHANGE_TIME, note: "" },
@@ -160,16 +161,18 @@ export function applyOp(plan: MatchPlan, op: PlanOp): MatchPlan {
         const loadout = patch.loadout ? editLoadout(run.loadout, patch.loadout) : run.loadout;
         const drawn = patch.path === undefined ? run.path : matPath(patch.path);
         const path = samePath(drawn, run.path) ? run.path : drawn;
+        const time = editSecRange(run.time, patch);
         if (
           launcher === run.launcher &&
           start === run.start &&
           end === run.end &&
           loadout === run.loadout &&
-          path === run.path
+          path === run.path &&
+          time === run.time
         ) {
           return run;
         }
-        return { ...run, launcher, start, end, loadout, path };
+        return { ...run, launcher, start, end, loadout, path, time };
       });
     }
     case "editToolChange": {
@@ -188,7 +191,6 @@ export function applyOp(plan: MatchPlan, op: PlanOp): MatchPlan {
         code: op.code,
         uses: "none",
         points: 0,
-        time: NEW_MISSION_TIME,
         notes: "",
       };
       return updateRun(plan, op.runId, (run) => ({ ...run, missions: [...run.missions, mission] }));
@@ -206,12 +208,11 @@ export function applyOp(plan: MatchPlan, op: PlanOp): MatchPlan {
           if (mission.id !== op.missionId) return mission;
           const uses = patch.uses ?? mission.uses;
           const points = patch.points === undefined ? mission.points : wholeNumber(patch.points);
-          const time = editSecRange(mission.time, patch);
           const notes = patch.notes === undefined ? mission.notes : clip(patch.notes, TEXT_LIMITS.notes);
-          if (uses === mission.uses && points === mission.points && time === mission.time && notes === mission.notes) {
+          if (uses === mission.uses && points === mission.points && notes === mission.notes) {
             return mission;
           }
-          return { ...mission, uses, points, time, notes };
+          return { ...mission, uses, points, notes };
         }),
       );
     }
@@ -467,16 +468,36 @@ function parseRun(raw: unknown): Run | null {
   const path = parseEach(raw.path, parsePoint);
   const toolChangeBefore = parseToolChange(raw.toolChangeBefore);
   if (!loadout || !missions || !path || !toolChangeBefore) return null;
+  const time = parseRunTime(raw.time, raw.missions);
+  if (!time) return null;
   return {
     id: raw.id,
     launcher: raw.launcher,
     start: raw.start,
     end: raw.end,
     loadout,
+    time,
     missions,
     path,
     toolChangeBefore,
   };
+}
+
+/** Prefer run.time; otherwise fold legacy per-mission times; otherwise a new-run default. */
+function parseRunTime(raw: unknown, missions: readonly unknown[]): SecRange | null {
+  if (raw !== undefined) return parseSecRange(raw);
+  let bestSec = 0;
+  let worstSec = 0;
+  let folded = false;
+  for (const mission of missions) {
+    if (!isRecord(mission)) continue;
+    const time = parseSecRange(mission.time);
+    if (!time) continue;
+    bestSec += time.bestSec;
+    worstSec += time.worstSec;
+    folded = true;
+  }
+  return folded ? secRange(bestSec, worstSec) : NEW_RUN_TIME;
 }
 
 function parseLoadout(raw: unknown): Loadout | null {
@@ -498,10 +519,9 @@ function parseMission(raw: unknown): PlannedMission | null {
   ) {
     return null;
   }
-  const time = parseSecRange(raw.time);
   const notes = optionalText(raw.notes);
-  if (!time || notes === null) return null;
-  return { id: raw.id, code: raw.code, uses: raw.uses, points: wholeNumber(raw.points), time, notes };
+  if (notes === null) return null;
+  return { id: raw.id, code: raw.code, uses: raw.uses, points: wholeNumber(raw.points), notes };
 }
 
 function parseToolChange(raw: unknown): ToolChange | null {
@@ -553,13 +573,13 @@ const RUN_PATCH: PatchGuards<RunPatch> = {
   loadout: (value): value is Partial<Loadout> =>
     isRecord(value) && Object.entries(value).every(([slot, name]) => isOneOf(SLOTS, slot) && isText(name)),
   path: (value): value is readonly PathPoint[] => Array.isArray(value) && value.every((point) => parsePoint(point)),
+  bestSec: isNumber,
+  worstSec: isNumber,
 };
 
 const MISSION_PATCH: PatchGuards<MissionPatch> = {
   uses: (value) => value === "none" || isOneOf(SLOTS, value),
   points: isNumber,
-  bestSec: isNumber,
-  worstSec: isNumber,
   notes: isText,
 };
 
