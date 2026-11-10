@@ -32,10 +32,10 @@ export function ThemeToggle() {
       title="Light or dark mode"
       className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-white/12 p-[3px] outline-none hover:bg-white/20 focus-visible:ring-3 focus-visible:ring-white/60"
     >
-      <span className="hidden size-[38px] items-center justify-center rounded-full bg-white text-header sm:inline-flex dark:inline-flex dark:bg-transparent dark:text-white sm:dark:text-white/70">
+      <span className="hidden size-[38px] items-center justify-center rounded-full bg-white text-dye-ink sm:inline-flex dark:inline-flex dark:bg-transparent dark:text-white sm:dark:text-white/70">
         <Sun className="size-5" aria-hidden />
       </span>
-      <span className="inline-flex size-[38px] items-center justify-center rounded-full text-white sm:text-white/70 dark:hidden dark:bg-status-some sm:dark:inline-flex sm:dark:text-white">
+      <span className="inline-flex size-[38px] items-center justify-center rounded-full text-white sm:text-white/70 dark:hidden dark:bg-white/22 sm:dark:inline-flex sm:dark:text-white">
         <Moon className="size-5" aria-hidden />
       </span>
     </button>

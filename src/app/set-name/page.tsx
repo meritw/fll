@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 
+import { AuthShell } from "@/components/auth-shell";
 import { SetNameForm } from "@/components/set-name-form";
 import { SignOutButton } from "@/components/sign-out-button";
-import { TeamLockup } from "@/components/team-logo";
 import { getSession, needsDisplayName, postAuthPath } from "@/lib/session";
 
 export const metadata: Metadata = {
@@ -20,16 +20,13 @@ export default async function SetNamePage() {
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-lg flex-1 flex-col justify-center px-4 py-10">
-      <div className="mb-4 flex justify-center">
-        <TeamLockup ink="auto" className="h-28 w-auto" priority />
-      </div>
+    <AuthShell>
       <h1 className="sr-only">Rolling Sparks</h1>
       <h2 className="mb-8 text-center text-3xl font-semibold">Choose your name</h2>
       <SetNameForm />
       <div className="mt-8 flex justify-center">
         <SignOutButton />
       </div>
-    </main>
+    </AuthShell>
   );
 }

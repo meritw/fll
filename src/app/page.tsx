@@ -37,34 +37,40 @@ export default async function HomePage() {
 
   return (
     <div className="flex min-h-full flex-1 flex-col">
-      <header className="bg-header text-white">
-        <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3 px-4 py-3">
-          <p className="flex items-center gap-2 text-xl font-semibold sm:text-2xl">
-            <TeamMark ink="white" className="hidden h-8 w-auto sm:block" priority />
-            Rolling Sparks
-          </p>
-          <div className="flex items-center gap-2">
-            <ThemeToggle />
-            <Link
-              href="/login"
-              className="inline-flex min-h-11 items-center rounded-lg px-3 font-medium hover:bg-white/10 focus-visible:ring-3 focus-visible:ring-white/60 focus-visible:outline-none"
-            >
-              Team sign in
-            </Link>
+      {/* Nav and hero share one sheet of the team's tie-dye shirt. */}
+      <div className="tie-dye tie-dye-hero tie-dye-drift text-white">
+        <header>
+          <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3 px-4 py-3">
+            <p className="flex items-center gap-2 text-xl font-semibold sm:text-2xl">
+              <TeamMark ink="white" className="hidden h-8 w-auto sm:block" priority />
+              Rolling Sparks
+            </p>
+            <div className="flex items-center gap-2">
+              <ThemeToggle />
+              <Link
+                href="/login"
+                className="inline-flex min-h-11 items-center rounded-lg px-3 font-medium hover:bg-white/10 focus-visible:ring-3 focus-visible:ring-white/60 focus-visible:outline-none"
+              >
+                Team sign in
+              </Link>
+            </div>
           </div>
-        </div>
-      </header>
+        </header>
 
-      {/* The hero continues the navy header band. */}
-      <section className="border-b border-header bg-header text-white dark:border-line">
-        <div className="mx-auto w-full max-w-5xl px-4 pt-8 pb-14 sm:pt-12 sm:pb-20">
+        <section className="mx-auto w-full max-w-5xl px-4 pt-8 pb-16 sm:pt-12 sm:pb-24">
           <div className="max-w-3xl">
-            <TeamLockup ink="white" className="h-36 w-auto sm:h-44" priority />
-            <p className="mt-6 font-mono text-sm tracking-[0.08em] text-milestone-accent uppercase">
+            <TeamLockup
+              ink="white"
+              className="h-40 w-auto drop-shadow-[0_2px_10px_rgb(43_14_22/0.35)] sm:h-52"
+              priority
+            />
+            <p className="mt-6 font-mono text-sm tracking-[0.08em] text-white/80 uppercase">
               FIRST LEGO League Challenge · Team 55900
             </p>
-            <h1 className="mt-3 text-4xl font-bold tracking-tight sm:text-6xl">Rolling Sparks</h1>
-            <p className="mt-3 text-xl text-milestone-soft">Penfield Central School District</p>
+            <h1 className="mt-3 text-4xl font-bold tracking-tight text-balance sm:text-6xl">
+              Rolling Sparks
+            </h1>
+            <p className="mt-3 text-xl text-white/85">Penfield Central School District</p>
             <p className="mt-6 max-w-2xl text-lg leading-relaxed text-white/90">
               This is the team website for Rolling Sparks, an educational FIRST LEGO
               League Challenge robotics team. Members use it for Spike Prime robot
@@ -75,7 +81,7 @@ export default async function HomePage() {
               <Button
                 asChild
                 size="xl"
-                className="bg-white text-header hover:bg-white/90 focus-visible:ring-white/60"
+                className="bg-white text-dye-ink hover:bg-white/90 focus-visible:ring-white/60"
               >
                 <Link href="/login">Sign in to team workspace</Link>
               </Button>
@@ -95,8 +101,8 @@ export default async function HomePage() {
               </Button>
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      </div>
 
       <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-4 py-4 sm:py-6">
         <section className="mt-6 max-w-3xl pt-6">
