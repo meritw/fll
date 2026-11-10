@@ -293,6 +293,21 @@ describe("plan ops that edit", () => {
     assert.deepEqual(time({ worstSec: 1500 }), { bestSec: 35, worstSec: 999 });
   });
 
+  // NumberField commits on blur so only the final value is applied. Live keystrokes for "80"
+  // would dispatch worstSec: 8 first and clamp best down — that was the Match plan timing bug.
+  it("keeps best when worst rises to its final value, but a partial digit would clamp best", () => {
+    const afterBest = apply(SEED_PLAN, { type: "editRun", runId: "r1", patch: { bestSec: 40 } });
+    assert.deepEqual(afterBest.runs[0].time, { bestSec: 40, worstSec: 55 });
+    assert.deepEqual(
+      apply(afterBest, { type: "editRun", runId: "r1", patch: { worstSec: 80 } }).runs[0].time,
+      { bestSec: 40, worstSec: 80 },
+    );
+    assert.deepEqual(
+      apply(afterBest, { type: "editRun", runId: "r1", patch: { worstSec: 8 } }).runs[0].time,
+      { bestSec: 8, worstSec: 8 },
+    );
+  });
+
   it("edits the tool change before a run with the same time-range rule", () => {
     const plan = apply(SEED_PLAN, {
       type: "editToolChange",

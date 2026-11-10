@@ -3,6 +3,7 @@ import { cn } from "cn";
 import { useState, type ComponentProps } from "react";
 
 import { Input } from "@/components/ui/input";
+import { commitNumberDraft } from "@/lib/match-plan/number-draft";
 import type { HomeBase } from "@/lib/match-plan/plan";
 
 export const HOME_CLASSES: Record<HomeBase, string> = {
@@ -18,16 +19,30 @@ export function HomePill({ home }: { home: HomeBase }) {
 
 export const FIELD_CLASS = "h-11 bg-card text-lg md:text-base dark:bg-input/30";
 
+/**
+ * Local draft while focused; commits on blur/Enter only.
+ * Best/worst ranges clamp each other in applyOp — live keystroke commits
+ * (e.g. typing "80" as "8" then "80") would pull the sibling end down mid-edit.
+ */
 export function NumberField({
   value,
   onValue,
   className,
+  onKeyDown,
   ...props
 }: { value: number; onValue: (value: number) => void } & Omit<
   ComponentProps<"input">,
   "value" | "onChange" | "type"
 >) {
   const [draft, setDraft] = useState<string | null>(null);
+
+  function commit() {
+    if (draft === null) return;
+    const next = commitNumberDraft(draft);
+    if (next !== null) onValue(next);
+    setDraft(null);
+  }
+
   return (
     <Input
       {...props}
@@ -35,12 +50,16 @@ export function NumberField({
       inputMode="numeric"
       autoComplete="off"
       value={draft ?? String(value)}
-      onChange={(event) => {
-        const text = event.target.value;
-        setDraft(text);
-        if (/^\d+$/.test(text)) onValue(Number(text));
+      onChange={(event) => setDraft(event.target.value)}
+      onBlur={commit}
+      onKeyDown={(event) => {
+        onKeyDown?.(event);
+        if (event.defaultPrevented) return;
+        if (event.key === "Enter") {
+          event.preventDefault();
+          event.currentTarget.blur();
+        }
       }}
-      onBlur={() => setDraft(null)}
       className={cn(FIELD_CLASS, "tabular-nums", className)}
     />
   );
