@@ -63,6 +63,10 @@
   --color-milestone: var(--milestone);
   --color-milestone-accent: var(--milestone-accent);
   --color-milestone-soft: var(--milestone-soft);
+  /* Red tie-dye team shirt, sampled from the shirt photo. */
+  --color-dye: var(--dye);
+  --color-dye-deep: var(--dye-deep);
+  --color-dye-ink: var(--dye-ink);
   /* Mission status ramp, dark to light so it reads without color. */
   --color-status-every: var(--status-every);
   --color-status-every-ink: var(--status-every-ink);
@@ -123,6 +127,10 @@
   --milestone: #0b2a5b;
   --milestone-accent: #a9c8f5;
   --milestone-soft: #dce8fb;
+  --dye: #9e3a41;
+  --dye-deep: #4b2d38;
+  --dye-ink: #5c1f2b;
+  --dye-shade: rgb(0 0 0 / 0);
   --status-every: #0b3d91;
   --status-every-ink: #ffffff;
   --status-some: #2f6fe4;
@@ -182,6 +190,11 @@
   --milestone: #1b3561;
   --milestone-accent: #8ab4ff;
   --milestone-soft: #cfe0ff;
+  --dye: #6e2a31;
+  --dye-deep: #2e1820;
+  --dye-ink: #5c1f2b;
+  /* The shirt by lamplight: same dye, pulled down so it sits with the dark page. */
+  --dye-shade: rgb(14 4 8 / 0.42);
   --status-every: #8ab4ff;
   --status-every-ink: #06101f;
   --status-some: #2f64c8;
@@ -202,6 +215,75 @@
   }
   html {
     @apply font-sans;
+  }
+}
+
+/*
+ * Full-bleed tie-dye surface. White text is at least 5:1 on every dye color
+ * before the scrim; the scrim only adds headroom where long copy sits.
+ */
+.tie-dye {
+  --dye-scrim: linear-gradient(transparent, transparent);
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background-color: var(--dye);
+}
+
+.tie-dye::before,
+.tie-dye::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+}
+
+.tie-dye::before {
+  /* Oversized so the drift never reveals an edge. */
+  inset: -8%;
+  background: url("/brand/tie-dye.webp") center / cover no-repeat;
+}
+
+.tie-dye::after {
+  inset: 0;
+  background:
+    linear-gradient(var(--dye-shade), var(--dye-shade)),
+    var(--dye-scrim);
+}
+
+/* Hero: deepen behind left-aligned copy and toward the page below. */
+.tie-dye-hero {
+  --dye-scrim:
+    linear-gradient(90deg, rgb(43 14 22 / 0.5), rgb(43 14 22 / 0.18) 50%, transparent 80%),
+    linear-gradient(transparent 55%, rgb(43 14 22 / 0.4));
+}
+
+/* Signed-in nav: a calmer, deeper band for everyday use. */
+.tie-dye-band {
+  --dye-scrim: linear-gradient(rgb(43 14 22 / 0.3), rgb(43 14 22 / 0.45));
+}
+
+.tie-dye-band::before {
+  background-position: 50% 30%;
+}
+
+.tie-dye-drift::before {
+  animation: dye-drift 60s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+@keyframes dye-drift {
+  from {
+    transform: scale(1) rotate(0deg);
+  }
+  to {
+    transform: scale(1.07) translate3d(-2.5%, 1.5%, 0) rotate(1.5deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tie-dye-drift::before {
+    animation: none;
   }
 }
 

@@ -19,7 +19,7 @@ export function Header({
   const parent = isParent(role);
 
   return (
-    <header className="border-b border-header bg-header text-white dark:border-line">
+    <header className="tie-dye tie-dye-band text-white">
       <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-x-4 gap-y-1 px-4 py-3">
         <Link href="/journal" className="flex items-center gap-2 text-xl font-semibold sm:text-2xl">
           <TeamMark ink="white" className="hidden h-8 w-auto sm:block" priority />
