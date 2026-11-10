@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Zap } from "lucide-react";
 
+import { TeamLockup, TeamMark } from "@/components/team-logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import { getSession, postAuthPath } from "@/lib/session";
@@ -40,7 +40,7 @@ export default async function HomePage() {
       <header className="bg-header text-white">
         <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3 px-4 py-3">
           <p className="flex items-center gap-2 text-xl font-semibold sm:text-2xl">
-            <Zap className="hidden size-6 sm:block" aria-hidden />
+            <TeamMark ink="white" className="hidden h-8 w-auto sm:block" priority />
             Rolling Sparks
           </p>
           <div className="flex items-center gap-2">
@@ -59,7 +59,8 @@ export default async function HomePage() {
       <section className="border-b border-header bg-header text-white dark:border-line">
         <div className="mx-auto w-full max-w-5xl px-4 pt-8 pb-14 sm:pt-12 sm:pb-20">
           <div className="max-w-3xl">
-            <p className="font-mono text-sm tracking-[0.08em] text-milestone-accent uppercase">
+            <TeamLockup ink="white" className="h-36 w-auto sm:h-44" priority />
+            <p className="mt-6 font-mono text-sm tracking-[0.08em] text-milestone-accent uppercase">
               FIRST LEGO League Challenge · Team 55900
             </p>
             <h1 className="mt-3 text-4xl font-bold tracking-tight sm:text-6xl">Rolling Sparks</h1>

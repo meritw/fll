@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 
+import { TeamLockup } from "@/components/team-logo";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -60,7 +61,10 @@ function ResetPasswordForm() {
 
   return (
     <main className="mx-auto flex w-full max-w-lg flex-1 flex-col justify-center px-4 py-10">
-      <h1 className="mb-8 text-4xl font-semibold">Rolling Sparks</h1>
+      <div className="mb-8 flex justify-center">
+        <TeamLockup ink="auto" className="h-28 w-auto" priority />
+      </div>
+      <h1 className="sr-only">Rolling Sparks</h1>
       {invalid ? (
         <Alert variant="destructive">
           <AlertDescription className="text-lg">
