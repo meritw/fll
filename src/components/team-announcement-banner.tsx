@@ -1,5 +1,4 @@
-const CHECKUP_URL =
-  "https://claude.ai/artifact/WKr5xFDdnvWqpMpwwdPQUG#be268add-b417.mw1xwzfxe8t.4528";
+const CHECKUP_URL = "/docs/Rolling%20Sparks%20Robot%20Checkup.pdf";
 
 /** Sitewide note for every signed-in user (kids, coaches, parents). */
 export function TeamAnnouncementBanner() {
